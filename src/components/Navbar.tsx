@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Brain, LogIn, Search, Upload, User, Settings, LogOut, Moon, Sun, Table, Info, HelpCircle, Code } from 'lucide-react';
+import { Stethoscope, LogIn, Search, Upload, User, Settings, LogOut, Moon, Sun, Heart, MapPin, Phone, Users, Activity } from 'lucide-react';
 import { useRippleEffect } from '@/lib/animations';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
@@ -118,7 +118,7 @@ const SubMenuItem = ({ to, icon, label, active, onClick }: NavItemProps) => {
 };
 
 export const Navbar = () => {
-  const [active, setActive] = useState('what');
+  const [active, setActive] = useState('home');
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const { isAuthenticated, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -135,37 +135,40 @@ export const Navbar = () => {
     setActive(id);
   };
 
-  const cortexSubmenu = [
-    { to: '/', icon: <Info size={18} />, label: 'What', id: 'what' },
-    { to: '/why', icon: <HelpCircle size={18} />, label: 'Why', id: 'why' },
-    { to: '/how', icon: <Code size={18} />, label: 'How', id: 'how' },
+  const healthcareSubmenu = [
+    { to: '/', icon: <Stethoscope size={18} />, label: 'Home', id: 'home' },
+    { to: '/search', icon: <Search size={18} />, label: 'Find Providers', id: 'find' },
+    { to: '/emergency', icon: <Phone size={18} />, label: 'Emergency', id: 'emergency' },
   ];
   
   const authNavItems = [
-    { to: '/manage', icon: <Table size={20} />, label: 'Manage', id: 'manage' },
-    { to: '/search', icon: <Search size={20} />, label: 'Search', id: 'search' },
-    { to: '/import', icon: <Upload size={20} />, label: 'Import', id: 'import' },
+    { to: '/manage', icon: <Heart size={20} />, label: 'Favorites', id: 'favorites' },
     { to: '/profile', icon: <User size={20} />, label: 'Profile', id: 'profile' },
     { to: '/settings', icon: <Settings size={20} />, label: 'Settings', id: 'settings' },
   ];
 
-  const navItems = isAuthenticated ? authNavItems : [];
+  const publicNavItems = [
+    { to: '/search', icon: <Search size={20} />, label: 'Search', id: 'search' },
+    { to: '/emergency', icon: <Phone size={20} />, label: 'Emergency', id: 'emergency' },
+  ];
+
+  const navItems = isAuthenticated ? authNavItems : publicNavItems;
 
   return (
     <>
       <TooltipProvider>
         <header className="glass-panel fixed top-6 left-1/2 transform -translate-x-1/2 z-40 rounded-lg px-1 py-1">
           <nav className="flex items-center">
-            {/* Cortex with submenu */}
+            {/* CityHealth with submenu */}
             <NavItem
               to="#"
-              icon={<Brain size={20} />}
-              label="Cortex"
-              active={['what', 'why', 'how'].includes(active)}
+              icon={<Stethoscope size={20} />}
+              label="CityHealth"
+              active={['home', 'find', 'emergency'].includes(active)}
               onClick={() => {}}
               hasSubmenu={true}
             >
-              {cortexSubmenu.map((item) => (
+              {healthcareSubmenu.map((item) => (
                 <SubMenuItem
                   key={item.id}
                   to={item.to}
