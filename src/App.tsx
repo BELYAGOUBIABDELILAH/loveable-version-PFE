@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 import Index from "./pages/Index";
 import WhyPage from "./pages/WhyPage";
 import HowPage from "./pages/HowPage";
@@ -14,9 +15,11 @@ import NotFound from "./pages/NotFound";
 import Profile from "./pages/Profile";
 import Import from "./pages/Import";
 import SearchPage from "./pages/SearchPage";
+import ProvidersPage from "./pages/ProvidersPage";
 import Settings from "./pages/Settings";
 import ManagePage from "./pages/ManagePage";
 import Navbar from "./components/Navbar";
+import FloatingSidebar from "./components/FloatingSidebar";
 
 const queryClient = new QueryClient();
 
@@ -95,6 +98,14 @@ const AppRoutes = () => {
         } 
       />
       <Route 
+        path="/providers" 
+        element={
+          <PageTransition>
+            <ProvidersPage />
+          </PageTransition>
+        } 
+      />
+      <Route 
         path="/settings" 
         element={
           <PageTransition>
@@ -117,18 +128,21 @@ const AppRoutes = () => {
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider>
-      <AuthProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <div className="min-h-screen">
-              <Navbar />
-              <AppRoutes />
-            </div>
-          </BrowserRouter>
-        </TooltipProvider>
-      </AuthProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-secondary/10 animate-gradient">
+                <Navbar />
+                <FloatingSidebar />
+                <AppRoutes />
+              </div>
+            </BrowserRouter>
+          </TooltipProvider>
+        </AuthProvider>
+      </LanguageProvider>
     </ThemeProvider>
   </QueryClientProvider>
 );
