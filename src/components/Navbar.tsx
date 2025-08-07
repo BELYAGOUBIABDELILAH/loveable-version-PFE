@@ -153,18 +153,21 @@ export const Navbar = () => {
   const healthcareSubmenu = [
     { to: '/', icon: <Stethoscope size={18} />, label: 'Home', id: 'home' },
     { to: '/search', icon: <Search size={18} />, label: 'Find Providers', id: 'find' },
+    { to: '/map', icon: <MapPin size={18} />, label: 'Map', id: 'map' },
     { to: '/emergency', icon: <Phone size={18} />, label: 'Emergency', id: 'emergency' },
   ];
   
   const authNavItems = [
-    { to: '/manage', icon: <Heart size={20} />, label: 'Favorites', id: 'favorites' },
+    { to: '/favorites', icon: <Heart size={20} />, label: 'Favorites', id: 'favorites' },
+    { to: '/contact', icon: <Phone size={20} />, label: 'Contact', id: 'contact' },
     { to: '/profile', icon: <User size={20} />, label: 'Profile', id: 'profile' },
     { to: '/settings', icon: <Settings size={20} />, label: 'Settings', id: 'settings' },
   ];
 
   const publicNavItems = [
     { to: '/search', icon: <Search size={20} />, label: 'Search', id: 'search' },
-    { to: '/emergency', icon: <Phone size={20} />, label: 'Emergency', id: 'emergency' },
+    { to: '/map', icon: <MapPin size={20} />, label: 'Map', id: 'map' },
+    { to: '/contact', icon: <Phone size={20} />, label: 'Contact', id: 'contact' },
   ];
 
   const navItems = isAuthenticated ? authNavItems : publicNavItems;
@@ -179,7 +182,7 @@ export const Navbar = () => {
               to="#"
               icon={<Stethoscope size={20} />}
               label="CityHealth"
-              active={['home', 'find', 'emergency'].includes(active)}
+              active={['home', 'find', 'map', 'emergency'].includes(active)}
               onClick={() => {}}
               hasSubmenu={true}
             >

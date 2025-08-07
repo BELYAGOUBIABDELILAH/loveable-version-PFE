@@ -11,6 +11,9 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import Index from "./pages/Index";
 import WhyPage from "./pages/WhyPage";
 import HowPage from "./pages/HowPage";
+import MapPage from "./pages/MapPage";
+import ContactPage from "./pages/ContactPage";
+import FavoritesPage from "./pages/FavoritesPage";
 import NotFound from "./pages/NotFound";
 import Profile from "./pages/Profile";
 import Import from "./pages/Import";
@@ -119,6 +122,30 @@ const AppRoutes = () => {
         element={
           <PageTransition>
             <AdminPage />
+          </PageTransition>
+        } 
+      />
+      <Route 
+        path="/map" 
+        element={
+          <PageTransition>
+            <MapPage />
+          </PageTransition>
+        } 
+      />
+      <Route 
+        path="/contact" 
+        element={
+          <PageTransition>
+            <ContactPage />
+          </PageTransition>
+        } 
+      />
+      <Route 
+        path="/favorites" 
+        element={
+          <PageTransition>
+            <FavoritesPage />
           </PageTransition>
         } 
       />
