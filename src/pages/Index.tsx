@@ -293,7 +293,7 @@ const Index = () => {
         </section>
 
         {/* Testimonials Section */}
-        <TestimonialsSection />
+        <TestimonialsSection showTestimonials={true} />
 
         {/* Map Section */}
         <MapSection />
