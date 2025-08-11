@@ -5,6 +5,10 @@ import { SearchResults } from '@/components/search/SearchResults';
 import { SearchMap } from '@/components/search/SearchMap';
 import { getProviders, CityHealthProvider } from '@/data/providers';
 
+console.log('SearchPage import successful');
+console.log('getProviders function:', getProviders);
+console.log('CityHealthProvider type imported');
+
 export type ViewMode = 'list' | 'grid' | 'map';
 export type SortOption = 'relevance' | 'distance' | 'rating' | 'price' | 'newest';
 

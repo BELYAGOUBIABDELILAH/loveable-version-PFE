@@ -239,3 +239,6 @@ export function getAppointments(): AppointmentRecord[] {
     return []
   }
 }
+
+// Legacy export for backward compatibility
+export const providers = getProviders();
