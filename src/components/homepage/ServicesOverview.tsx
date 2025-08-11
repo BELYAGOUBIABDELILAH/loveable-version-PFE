@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
 
 interface ServiceCard {
   key: string;
-  icon: React.ComponentType<{ size?: number; className?: string }>;
+  icon: React.ComponentType<any>;
   count: string;
   href: string;
 }
