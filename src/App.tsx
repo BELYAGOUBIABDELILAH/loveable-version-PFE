@@ -8,7 +8,7 @@ import { useEffect } from "react";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
-import Index from "./pages/Index";
+import NewIndex from "./pages/NewIndex";
 import WhyPage from "./pages/WhyPage";
 import HowPage from "./pages/HowPage";
 import MapPage from "./pages/MapPage";
@@ -22,7 +22,7 @@ import ProvidersPage from "./pages/ProvidersPage";
 import Settings from "./pages/Settings";
 import ManagePage from "./pages/ManagePage";
 import AdminPage from "./pages/AdminPage";
-import Navbar from "./components/Navbar";
+import { Header } from "./components/layout/Header";
 import FloatingSidebar from "./components/FloatingSidebar";
 import EmergencyPage from "./pages/EmergencyPage";
 import ProviderProfilePage from "./pages/ProviderProfilePage";
@@ -55,7 +55,7 @@ const AppRoutes = () => {
         path="/" 
         element={
           <PageTransition>
-            <Index />
+            <NewIndex />
           </PageTransition>
         } 
       />
@@ -194,7 +194,6 @@ const App = () => (
             <BrowserRouter>
               <SeedInit />
               <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-secondary/10 animate-gradient">
-                <Navbar />
                 <FloatingSidebar />
                 <AIChatWidget />
                 <AppRoutes />

@@ -2,9 +2,15 @@ import { Search, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useNavigate } from 'react-router-dom';
 
 export const ModernHeroSection = () => {
   const { t } = useLanguage();
+  const navigate = useNavigate();
+
+  const handleSearch = () => {
+    navigate('/search');
+  };
 
   return (
     <section className="relative pt-20 pb-32 px-4 overflow-hidden">
@@ -30,7 +36,9 @@ export const ModernHeroSection = () => {
           {/* CTA Button */}
           <Button 
             size="lg" 
-            className="bg-primary hover:bg-primary/90 text-white px-8 py-6 text-lg rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105"
+            onClick={handleSearch}
+            className="bg-gradient-to-r from-primary to-accent hover:opacity-90 text-white px-8 py-6 text-lg rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105"
+            aria-label="Search for healthcare provider"
           >
             <Search className="mr-2 h-5 w-5" />
             Rechercher un prestataire

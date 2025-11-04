@@ -151,100 +151,88 @@ export const FeaturedProviders = () => {
           </div>
         </div>
 
-        {/* Providers Carousel */}
-        <div className="relative overflow-hidden">
-          <div 
-            className="flex transition-transform duration-500 ease-in-out"
-            style={{ transform: `translateX(-${currentSlide * 100}%)` }}
-          >
-            {Array.from({ length: maxSlides }).map((_, slideIndex) => (
-              <div key={slideIndex} className="w-full flex-shrink-0">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {providers
-                    .slice(slideIndex * itemsPerSlide, (slideIndex + 1) * itemsPerSlide)
-                    .map((provider, index) => (
-                      <Card 
-                        key={provider.id}
-                        className="group glass-card hover:shadow-xl transition-all duration-300 cursor-pointer border border-primary/10 hover:border-primary/30 hover-lift animate-scale-in"
-                        style={{ animationDelay: `${index * 0.1}s` }}
-                      >
-                        <CardContent className="p-6">
-                          {/* Provider Header */}
-                          <div className="flex items-start justify-between mb-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-                                <span className="text-primary font-semibold">
-                                  {provider.name.split(' ').map(n => n[0]).join('')}
-                                </span>
-                              </div>
-                              <div>
-                                <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">
-                                  {provider.name}
-                                </h3>
-                                <p className="text-muted-foreground text-sm">{provider.specialty}</p>
-                              </div>
-                            </div>
-                            
-                            {provider.isVerified && (
-                              <Badge variant="secondary" className="gap-1">
-                                <Shield size={12} />
-                                {t('providers.verified')}
-                              </Badge>
-                            )}
-                          </div>
-
-                          {/* Location & Rating */}
-                          <div className="space-y-3 mb-4">
-                            <div className="flex items-center gap-2 text-sm">
-                              <MapPin size={14} className="text-muted-foreground" />
-                              <span>{provider.location}</span>
-                              <span className="text-muted-foreground">•</span>
-                              <span className="text-primary font-medium">{provider.distance}</span>
-                            </div>
-                            
-                            <div className="flex items-center gap-3">
-                              <div className="flex items-center gap-1">
-                                <Star className="text-yellow-400 fill-yellow-400" size={14} />
-                                <span className="font-medium">{provider.rating}</span>
-                                <span className="text-muted-foreground text-sm">({provider.reviewCount})</span>
-                              </div>
-                              
-                              <div className="flex items-center gap-1">
-                                <Clock size={14} className={provider.isAvailable ? 'text-green-500' : 'text-orange-500'} />
-                                <span className={`text-sm font-medium ${provider.isAvailable ? 'text-green-600' : 'text-orange-600'}`}>
-                                  {provider.nextAvailable}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Availability Status */}
-                          <div className="mb-4">
-                            <Badge 
-                              variant={provider.isAvailable ? "default" : "secondary"}
-                              className={provider.isAvailable ? "bg-green-100 text-green-700 border-green-200" : ""}
-                            >
-                              {provider.isAvailable ? 'Available Now' : 'Next Available'}
-                            </Badge>
-                          </div>
-
-                          {/* Action Button */}
-                          <Link to={`/provider/${provider.id}`}>
-                            <Button 
-                              className="w-full group-hover:bg-primary group-hover:text-white transition-all duration-300 ripple-effect"
-                              variant="outline"
-                            >
-                              View Profile
-                              <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" size={14} />
-                            </Button>
-                          </Link>
-                        </CardContent>
-                      </Card>
-                    ))}
+        {/* Providers Grid - Responsive */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {getCurrentProviders().map((provider, index) => (
+            <Card 
+              key={provider.id}
+              className="group glass-card hover:shadow-xl transition-all duration-300 cursor-pointer border border-primary/10 hover:border-primary/30 hover-lift animate-scale-in"
+              style={{ animationDelay: `${index * 0.1}s` }}
+            >
+              <CardContent className="p-6">
+                {/* Provider Header */}
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                      <span className="text-primary font-semibold">
+                        {provider.name.split(' ').map(n => n[0]).join('')}
+                      </span>
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-lg group-hover:text-primary transition-colors">
+                        {provider.name}
+                      </h3>
+                      <p className="text-muted-foreground text-sm">{provider.specialty}</p>
+                    </div>
+                  </div>
+                  
+                  {provider.isVerified && (
+                    <Badge variant="secondary" className="gap-1">
+                      <Shield size={12} />
+                      {t('providers.verified')}
+                    </Badge>
+                  )}
                 </div>
-              </div>
-            ))}
-          </div>
+
+                {/* Location & Rating */}
+                <div className="space-y-3 mb-4">
+                  <div className="flex items-center gap-2 text-sm">
+                    <MapPin size={14} className="text-muted-foreground" />
+                    <span>{provider.location}</span>
+                    <span className="text-muted-foreground">•</span>
+                    <span className="text-primary font-medium">{provider.distance}</span>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1">
+                      <Star className="text-yellow-400 fill-yellow-400" size={14} />
+                      <span className="font-medium">{provider.rating}</span>
+                      <span className="text-muted-foreground text-sm">({provider.reviewCount})</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-1">
+                      <Clock size={14} className={provider.isAvailable ? 'text-green-500' : 'text-orange-500'} />
+                      <span className={`text-sm font-medium ${provider.isAvailable ? 'text-green-600' : 'text-orange-600'}`}>
+                        {provider.nextAvailable}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Availability Status */}
+                <div className="mb-4">
+                  <Badge 
+                    variant={provider.isAvailable ? "default" : "secondary"}
+                    className={provider.isAvailable ? "bg-green-100 text-green-700 border-green-200" : ""}
+                  >
+                    {provider.isAvailable ? 'Available Now' : 'Next Available'}
+                  </Badge>
+                </div>
+
+                {/* Action Button */}
+                <Link to={`/provider/${provider.id}`}>
+                  <Button 
+                    className="w-full group-hover:bg-primary group-hover:text-white transition-all duration-300 ripple-effect"
+                    variant="outline"
+                    aria-label={`View profile of ${provider.name}`}
+                  >
+                    View Profile
+                    <ArrowRight className="ml-2 group-hover:translate-x-1 transition-transform" size={14} />
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ))}
         </div>
 
         {/* View All Button */}

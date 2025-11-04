@@ -1,135 +1,150 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Moon, Sun, Menu, X, Stethoscope } from 'lucide-react';
+import { Moon, Sun, Menu, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { Link } from 'react-router-dom';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
 export const Header = () => {
   const { theme, toggleTheme } = useTheme();
   const { language, setLanguage, t } = useLanguage();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const menuItems = [
-    { label: t('nav.home'), path: '/' },
-    { label: t('nav.providers'), path: '/search' },
-    { label: t('emergency.title'), path: '/emergency' },
-    { label: t('nav.about'), path: '/about' },
+  const languageLabels = {
+    fr: { flag: '🇫🇷', label: 'Français' },
+    ar: { flag: '🇩🇿', label: 'العربية' },
+    en: { flag: '🇬🇧', label: 'English' },
+  };
+
+  const navLinks = [
+    { to: '/', label: t('nav.home') },
+    { to: '/search', label: 'Prestataires' },
+    { to: '/emergency', label: t('nav.emergency') },
+    { to: '/contact', label: t('nav.contact') },
   ];
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
-          {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Stethoscope className="h-6 w-6 text-primary" />
-            </div>
-            <span className="text-2xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              CityHealth
-            </span>
-          </Link>
+    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur-lg supports-[backdrop-filter]:bg-background/60">
+      <div className="container mx-auto flex h-16 items-center justify-between px-4">
+        {/* Logo */}
+        <Link 
+          to="/" 
+          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+          aria-label="CityHealth Home"
+        >
+          <div className="w-8 h-8 bg-gradient-to-br from-primary to-accent rounded-full flex items-center justify-center shadow-lg">
+            <span className="text-white font-bold text-sm">CH</span>
+          </div>
+          <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            CityHealth
+          </span>
+        </Link>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-6">
-            {menuItems.map((item) => (
-              <Link
-                key={item.path}
-                to={item.path}
-                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+        {/* Desktop Navigation */}
+        <nav className="hidden md:flex items-center gap-6" role="navigation" aria-label="Main navigation">
+          {navLinks.map((link) => (
+            <Link 
+              key={link.to}
+              to={link.to} 
+              className="text-foreground/80 hover:text-primary transition-colors font-medium"
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
+
+        {/* Actions */}
+        <div className="flex items-center gap-2">
+          {/* Theme Toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            className="hover:bg-accent"
+            aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </Button>
+
+          {/* Language Selector */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="hover:bg-accent"
+                aria-label="Select language"
               >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-
-          {/* Right Side Actions */}
-          <div className="flex items-center gap-3">
-            {/* Language Selector */}
-            <Select value={language} onValueChange={(value: 'fr' | 'ar' | 'en') => setLanguage(value)}>
-              <SelectTrigger className="w-[80px] h-9 border-none bg-secondary/50">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="fr">🇫🇷 FR</SelectItem>
-                <SelectItem value="ar">🇩🇿 AR</SelectItem>
-                <SelectItem value="en">🇬🇧 EN</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {/* Theme Toggle */}
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleTheme}
-              className="h-9 w-9"
-            >
-              {theme === 'light' ? (
-                <Moon className="h-5 w-5" />
-              ) : (
-                <Sun className="h-5 w-5" />
-              )}
-            </Button>
-
-            {/* Auth Buttons - Desktop */}
-            <div className="hidden md:flex items-center gap-2">
-              <Button variant="ghost" size="sm">
-                {t('auth.login')}
+                <span className="text-lg">{languageLabels[language].flag}</span>
               </Button>
-              <Button size="sm" className="bg-primary hover:bg-primary/90">
-                {t('auth.register')}
-              </Button>
-            </div>
-
-            {/* Mobile Menu Toggle */}
-            <Button
-              variant="ghost"
-              size="icon"
-              className="md:hidden h-9 w-9"
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            >
-              {mobileMenuOpen ? (
-                <X className="h-5 w-5" />
-              ) : (
-                <Menu className="h-5 w-5" />
-              )}
-            </Button>
-          </div>
-        </div>
-
-        {/* Mobile Menu */}
-        {mobileMenuOpen && (
-          <div className="md:hidden py-4 border-t animate-slide-down">
-            <nav className="flex flex-col gap-3">
-              {menuItems.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-primary hover:bg-secondary/50 rounded-lg transition-colors"
-                  onClick={() => setMobileMenuOpen(false)}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="bg-popover/95 backdrop-blur-lg border-border/50 z-50">
+              {Object.entries(languageLabels).map(([lang, { flag, label }]) => (
+                <DropdownMenuItem
+                  key={lang}
+                  onClick={() => setLanguage(lang as 'fr' | 'ar' | 'en')}
+                  className="cursor-pointer"
                 >
-                  {item.label}
-                </Link>
+                  <span className="mr-2 text-lg">{flag}</span>
+                  {label}
+                </DropdownMenuItem>
               ))}
-              <div className="flex gap-2 px-4 pt-2 border-t">
-                <Button variant="outline" size="sm" className="flex-1">
-                  {t('auth.login')}
-                </Button>
-                <Button size="sm" className="flex-1 bg-primary hover:bg-primary/90">
-                  {t('auth.register')}
-                </Button>
-              </div>
-            </nav>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Auth Buttons - Desktop */}
+          <div className="hidden md:flex items-center gap-2">
+            <Button variant="ghost" size="sm">
+              {t('nav.signin')}
+            </Button>
+            <Button size="sm" className="bg-gradient-to-r from-primary to-accent hover:opacity-90">
+              Inscription
+            </Button>
           </div>
-        )}
+
+          {/* Mobile Menu Toggle */}
+          <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+            <SheetTrigger asChild>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="md:hidden"
+                aria-label="Open mobile menu"
+              >
+                <Menu size={20} />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-[280px] bg-background/95 backdrop-blur-lg">
+              <nav className="flex flex-col gap-4 mt-8" role="navigation" aria-label="Mobile navigation">
+                {navLinks.map((link) => (
+                  <Link
+                    key={link.to}
+                    to={link.to}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="text-lg font-medium text-foreground/80 hover:text-primary transition-colors py-2 px-4 rounded-lg hover:bg-accent/50"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+                <div className="border-t border-border/40 pt-4 mt-4 space-y-3">
+                  <Button variant="outline" className="w-full" onClick={() => setMobileMenuOpen(false)}>
+                    {t('nav.signin')}
+                  </Button>
+                  <Button className="w-full bg-gradient-to-r from-primary to-accent" onClick={() => setMobileMenuOpen(false)}>
+                    Inscription
+                  </Button>
+                </div>
+              </nav>
+            </SheetContent>
+          </Sheet>
+        </div>
       </div>
     </header>
   );
