@@ -30,6 +30,7 @@ import ProviderRegister from "./pages/ProviderRegister";
 import ProviderDashboard from "./pages/ProviderDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import AIChatWidget from "./components/AIChatWidget";
+import { AIChatbot } from "./components/AIChatbot";
 import { seedProvidersIfNeeded } from "@/data/providers";
 
 const queryClient = new QueryClient();
@@ -222,7 +223,7 @@ const App = () => (
               <SeedInit />
               <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-secondary/10 animate-gradient">
                 <FloatingSidebar />
-                <AIChatWidget />
+                <AIChatbot />
                 <AppRoutes />
               </div>
             </BrowserRouter>

@@ -11,6 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { NotificationCenter } from '@/components/NotificationCenter';
 
 export const Header = () => {
   const { theme, toggleTheme } = useTheme();
@@ -98,6 +99,11 @@ export const Header = () => {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+
+          {/* Notification Center */}
+          <div className="hidden md:block">
+            <NotificationCenter />
+          </div>
 
           {/* Auth Buttons - Desktop */}
           <div className="hidden md:flex items-center gap-2">

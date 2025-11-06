@@ -219,6 +219,7 @@ export interface AppointmentRecord {
   when: string // ISO string
   name: string // patient name (mock)
   phone: string
+  email?: string
 }
 
 export function saveAppointment(a: AppointmentRecord) {

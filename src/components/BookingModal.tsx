@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { saveAppointment } from '@/data/providers';
+import { useNotifications } from '@/hooks/useNotifications';
+import { toast } from 'sonner';
 
 interface BookingModalProps {
   open: boolean;
@@ -20,6 +22,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({ open, onOpenChange, 
   const [selectedISO, setSelectedISO] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const { sendNotification } = useNotifications();
 
   const slots = useMemo(() => {
     const out: string[] = [];
@@ -36,7 +40,30 @@ export const BookingModal: React.FC<BookingModalProps> = ({ open, onOpenChange, 
 
   const confirm = () => {
     if (!selectedISO || !name || !phone) return;
-    saveAppointment({ id: crypto.randomUUID(), providerId, when: selectedISO, name, phone });
+    
+    const appointmentId = crypto.randomUUID();
+    saveAppointment({ 
+      id: appointmentId, 
+      providerId, 
+      when: selectedISO, 
+      name, 
+      phone,
+      email 
+    });
+
+    // Send notification
+    sendNotification({
+      userId: 'current-user',
+      type: 'appointment',
+      title: 'Rendez-vous confirmé',
+      body: `Votre rendez-vous avec ${providerName} est confirmé pour le ${format(new Date(selectedISO), 'EEEE d MMMM à HH:mm', { locale: fr })}`,
+      link: '/appointments',
+    });
+
+    // TODO: Send confirmation email via edge function when Cloud is enabled
+    // await supabase.functions.invoke('send-appointment-email', { ... })
+
+    toast.success('Rendez-vous confirmé! Vous recevrez un rappel 24h avant.');
     onOpenChange(false);
   };
 
@@ -48,14 +75,25 @@ export const BookingModal: React.FC<BookingModalProps> = ({ open, onOpenChange, 
           <DialogDescription>Avec {providerName}</DialogDescription>
         </DialogHeader>
 
-        <div className="grid md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="text-sm">Votre nom</label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom et prénom" />
+        <div className="space-y-4">
+          <div className="grid md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <label className="text-sm">Votre nom</label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nom et prénom" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm">Téléphone</label>
+              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Ex: 0550 00 00 00" />
+            </div>
           </div>
           <div className="space-y-2">
-            <label className="text-sm">Téléphone</label>
-            <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Ex: 0550 00 00 00" />
+            <label className="text-sm">Email (optionnel)</label>
+            <Input 
+              type="email" 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)} 
+              placeholder="votre@email.com" 
+            />
           </div>
         </div>
 
