@@ -8,6 +8,7 @@ import { useEffect } from "react";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import NewIndex from "./pages/NewIndex";
 import WhyPage from "./pages/WhyPage";
 import HowPage from "./pages/HowPage";
@@ -230,26 +231,28 @@ const AppRoutes = () => {
 };
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider>
-      <LanguageProvider>
-        <AuthProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <SeedInit />
-              <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-secondary/10 animate-gradient">
-                <FloatingSidebar />
-                <AIChatbot />
-                <AppRoutes />
-              </div>
-            </BrowserRouter>
-          </TooltipProvider>
-        </AuthProvider>
-      </LanguageProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <SeedInit />
+                <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-secondary/10 animate-gradient">
+                  <FloatingSidebar />
+                  <AIChatbot />
+                  <AppRoutes />
+                </div>
+              </BrowserRouter>
+            </TooltipProvider>
+          </AuthProvider>
+        </LanguageProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

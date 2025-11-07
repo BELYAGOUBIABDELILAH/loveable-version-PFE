@@ -51,31 +51,45 @@ export const AIChatbot = () => {
     setInput('');
     setIsLoading(true);
 
+    let assistantContent = '';
+
     try {
-      // TODO: Replace with actual Lovable AI integration
-      // When Lovable Cloud is enabled, this will call the edge function
-      // For now, using mock responses
+      const { streamChat } = await import('@/services/aiChatService');
       
-      const mockResponses = [
-        "Je comprends votre préoccupation. Pour des symptômes de ce type, je vous recommande de consulter un médecin généraliste. Voulez-vous que je vous aide à trouver un médecin près de chez vous?",
-        "D'après les informations que vous m'avez données, il serait préférable de consulter un spécialiste. Je peux vous aider à trouver des spécialistes dans votre région.",
-        "Je vous recommande de consulter un professionnel de santé dès que possible. Puis-je vous aider à rechercher des médecins disponibles?",
-        "Pour une évaluation précise, je vous conseille de prendre rendez-vous avec un médecin. Souhaitez-vous que je vous montre les médecins disponibles près de vous?"
-      ];
-
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      const assistantMessage: Message = {
-        role: 'assistant',
-        content: mockResponses[Math.floor(Math.random() * mockResponses.length)],
-        timestamp: new Date(),
-      };
-
-      setMessages(prev => [...prev, assistantMessage]);
+      await streamChat({
+        messages: messages.concat(userMessage).map(m => ({
+          role: m.role,
+          content: m.content,
+        })),
+        onDelta: (chunk) => {
+          assistantContent += chunk;
+          setMessages(prev => {
+            const lastMsg = prev[prev.length - 1];
+            if (lastMsg?.role === 'assistant') {
+              return prev.map((m, i) => 
+                i === prev.length - 1 
+                  ? { ...m, content: assistantContent }
+                  : m
+              );
+            }
+            return [...prev, {
+              role: 'assistant',
+              content: assistantContent,
+              timestamp: new Date(),
+            }];
+          });
+        },
+        onDone: () => {
+          setIsLoading(false);
+        },
+        onError: (error) => {
+          toast.error(error.message);
+          setIsLoading(false);
+        },
+      });
     } catch (error) {
       toast.error('Erreur lors de l\'envoi du message');
       console.error('Chat error:', error);
-    } finally {
       setIsLoading(false);
     }
   };
