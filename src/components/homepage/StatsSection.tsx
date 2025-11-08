@@ -1,6 +1,6 @@
 import { Users, MapPin, Star, Shield } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
-import { useLanguage } from '@/contexts/LanguageContext';
+import { useLanguage } from '@/hooks/useLanguage';
 import { useScrollReveal } from '@/hooks/useScrollReveal';
 import CounterAnimation from '@/components/CounterAnimation';
 
