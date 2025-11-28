@@ -1,0 +1,226 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================
+    // HELPER FUNCTIONS
+    // ============================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function getUserRole() {
+      return get(/databases/$(database)/documents/userRoles/$(request.auth.uid)).data.role;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && getUserRole() == 'admin';
+    }
+    
+    function isProvider() {
+      return isAuthenticated() && getUserRole() == 'provider';
+    }
+    
+    function isVerifiedProvider() {
+      return isProvider() && 
+        exists(/databases/$(database)/documents/providers/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/providers/$(request.auth.uid)).data.verificationStatus == 'verified';
+    }
+    
+    // ============================================
+    // PROVIDERS COLLECTION
+    // ============================================
+    
+    match /providers/{providerId} {
+      // Anyone can read verified providers
+      allow read: if resource.data.verificationStatus == 'verified' || 
+                    isOwner(resource.data.userId) || 
+                    isAdmin();
+      
+      // Authenticated users can create providers
+      allow create: if isAuthenticated();
+      
+      // Owner or admin can update
+      allow update: if isOwner(resource.data.userId) || isAdmin();
+      
+      // Only admin can delete
+      allow delete: if isAdmin();
+      
+      // Ratings subcollection
+      match /ratings/{ratingId} {
+        allow read: if true;
+        allow create: if isAuthenticated();
+        allow update, delete: if isOwner(resource.data.userId);
+      }
+    }
+    
+    // ============================================
+    // PROFILES COLLECTION
+    // ============================================
+    
+    match /profiles/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================
+    // USER ROLES COLLECTION
+    // ============================================
+    
+    match /userRoles/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId);
+      allow update, delete: if isAdmin();
+    }
+    
+    // ============================================
+    // SPECIALTIES COLLECTION
+    // ============================================
+    
+    match /specialties/{specialtyId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    
+    // ============================================
+    // SERVICES COLLECTION
+    // ============================================
+    
+    match /services/{serviceId} {
+      allow read: if true;
+      allow create: if isProvider();
+      allow update, delete: if isOwner(resource.data.providerId) || isAdmin();
+    }
+    
+    // ============================================
+    // SCHEDULES COLLECTION
+    // ============================================
+    
+    match /schedules/{scheduleId} {
+      allow read: if true;
+      allow create: if isProvider();
+      allow update, delete: if isOwner(resource.data.providerId) || isAdmin();
+    }
+    
+    // ============================================
+    // VERIFICATIONS COLLECTION
+    // ============================================
+    
+    match /verifications/{verificationId} {
+      allow read: if isOwner(resource.data.providerId) || isAdmin();
+      allow create: if isProvider();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================
+    // MEDICAL ADS COLLECTION
+    // ============================================
+    
+    match /medicalAds/{adId} {
+      // Public can read approved ads
+      allow read: if resource.data.status == 'approved' || 
+                    isOwner(resource.data.providerId) || 
+                    isAdmin();
+      
+      // Only verified providers can create ads
+      allow create: if isVerifiedProvider();
+      
+      // Owner can update (but not status), admin can update all
+      allow update: if (isOwner(resource.data.providerId) && 
+                       request.resource.data.status == resource.data.status) || 
+                      isAdmin();
+      
+      // Owner or admin can delete
+      allow delete: if isOwner(resource.data.providerId) || isAdmin();
+    }
+    
+    // ============================================
+    // FAVORITES COLLECTION
+    // ============================================
+    
+    match /favorites/{favoriteId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAuthenticated() && 
+                      request.resource.data.userId == request.auth.uid;
+      allow delete: if isOwner(resource.data.userId);
+    }
+    
+    // ============================================
+    // CHAT SESSIONS COLLECTION
+    // ============================================
+    
+    match /chatSessions/{sessionId} {
+      allow read: if resource.data.userId == null || 
+                    isOwner(resource.data.userId);
+      allow create: if true; // Allow anonymous chat
+      allow update: if resource.data.userId == null || 
+                      isOwner(resource.data.userId);
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+      
+      // Chat messages subcollection
+      match /messages/{messageId} {
+        allow read: if get(/databases/$(database)/documents/chatSessions/$(sessionId)).data.userId == null ||
+                      isOwner(get(/databases/$(database)/documents/chatSessions/$(sessionId)).data.userId);
+        allow create: if true;
+      }
+    }
+    
+    // ============================================
+    // CHAT MESSAGES COLLECTION (if not using subcollection)
+    // ============================================
+    
+    match /chatMessages/{messageId} {
+      allow read: if true; // Messages are tied to sessions
+      allow create: if true;
+    }
+    
+    // ============================================
+    // ANALYTICS EVENTS COLLECTION
+    // ============================================
+    
+    match /analyticsEvents/{eventId} {
+      allow read: if isAdmin();
+      allow create: if true; // Allow anonymous tracking
+    }
+    
+    // ============================================
+    // PROFILE CLAIMS COLLECTION
+    // ============================================
+    
+    match /profileClaims/{claimId} {
+      allow read: if isOwner(resource.data.userId) || isAdmin();
+      allow create: if isProvider();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================
+    // ADMIN LOGS COLLECTION
+    // ============================================
+    
+    match /adminLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAdmin();
+      allow update, delete: if false; // Logs are immutable
+    }
+    
+    // ============================================
+    // NOTIFICATIONS COLLECTION
+    // ============================================
+    
+    match /notifications/{notificationId} {
+      allow read: if isOwner(resource.data.userId);
+      allow create: if isAdmin();
+      allow update: if isOwner(resource.data.userId); // Mark as read
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+  }
+}

@@ -19,16 +19,89 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { 
   CheckCircle, XCircle, Eye, Users, Building2, TrendingUp,
-  AlertCircle, Activity, Search, Filter, BarChart3, Settings
+  AlertCircle, Activity, Search, Filter, BarChart3, Settings,
+  FileText, Trash2, Calendar
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import BulkImportForm from '@/components/BulkImportForm';
+import {
+  logProviderApproval,
+  logProviderRejection,
+  logMedicalAdApproval,
+  logMedicalAdRejection,
+  logMedicalAdDeletion,
+  logProfileClaimApproval,
+  logProfileClaimRejection,
+} from '@/services/adminLoggingService';
+
+interface MedicalAd {
+  id: string;
+  title: string;
+  content: string;
+  image_url: string | null;
+  status: 'pending' | 'approved' | 'rejected';
+  display_priority: number;
+  start_date: string;
+  end_date: string | null;
+  created_at: string;
+  provider: {
+    id: string;
+    business_name: string;
+    provider_type: string;
+  };
+}
+
+interface ProfileClaim {
+  id: string;
+  status: 'pending' | 'approved' | 'rejected';
+  documentation: string[];
+  notes: string;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+  provider: {
+    id: string;
+    business_name: string;
+    provider_type: string;
+    address: string;
+  };
+  claimant: {
+    id: string;
+    name: string;
+    email: string;
+  };
+}
 
 export default function AdminDashboard() {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  
+  // Medical ads state
+  const [medicalAds, setMedicalAds] = useState<MedicalAd[]>([]);
+  const [adsLoading, setAdsLoading] = useState(false);
+  const [adsSearchQuery, setAdsSearchQuery] = useState('');
+  const [adsStatusFilter, setAdsStatusFilter] = useState('all');
+  const [selectedAd, setSelectedAd] = useState<MedicalAd | null>(null);
+  const [viewModalOpen, setViewModalOpen] = useState(false);
+
+  // Profile claims state
+  const [profileClaims, setProfileClaims] = useState<ProfileClaim[]>([]);
+  const [claimsLoading, setClaimsLoading] = useState(false);
+  const [claimsSearchQuery, setClaimsSearchQuery] = useState('');
+  const [claimsStatusFilter, setClaimsStatusFilter] = useState('all');
+  const [selectedClaim, setSelectedClaim] = useState<ProfileClaim | null>(null);
+  const [claimViewModalOpen, setClaimViewModalOpen] = useState(false);
 
   const [stats] = useState({
     totalUsers: 15847,
@@ -71,12 +144,18 @@ export default function AdminDashboard() {
     { type: 'update', user: 'Dr. Sara M.', action: 'Mise à jour du profil', time: 'Il y a 6h' },
   ]);
 
-  const handleApprove = (id: string) => {
+  const handleApprove = async (id: string) => {
+    const provider = pendingProviders.find(p => p.id === id);
+    if (!provider) return;
+
     const updated = pendingProviders.map(p => 
       p.id === id ? { ...p, status: 'approved' } : p
     );
     setPendingProviders(updated);
     localStorage.setItem('ch_pending_registrations', JSON.stringify(updated));
+    
+    // Log the approval action
+    await logProviderApproval(id, provider.providerName);
     
     toast({
       title: "Profil approuvé",
@@ -84,12 +163,18 @@ export default function AdminDashboard() {
     });
   };
 
-  const handleReject = (id: string) => {
+  const handleReject = async (id: string) => {
+    const provider = pendingProviders.find(p => p.id === id);
+    if (!provider) return;
+
     const updated = pendingProviders.map(p => 
       p.id === id ? { ...p, status: 'rejected' } : p
     );
     setPendingProviders(updated);
     localStorage.setItem('ch_pending_registrations', JSON.stringify(updated));
+    
+    // Log the rejection action
+    await logProviderRejection(id, provider.providerName);
     
     toast({
       title: "Profil rejeté",
@@ -98,12 +183,413 @@ export default function AdminDashboard() {
     });
   };
 
+  // Medical ads functions
+  const fetchMedicalAds = async () => {
+    try {
+      setAdsLoading(true);
+      
+      const { data: ads, error } = await (supabase as any)
+        .from('medical_ads')
+        .select(`
+          *,
+          provider:providers(
+            id,
+            business_name,
+            provider_type
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching medical ads:', error);
+        toast({
+          title: "Erreur",
+          description: "Impossible de charger les annonces médicales.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setMedicalAds(ads || []);
+    } catch (error) {
+      console.error('Error fetching medical ads:', error);
+      toast({
+        title: "Erreur",
+        description: "Une erreur inattendue s'est produite.",
+        variant: "destructive",
+      });
+    } finally {
+      setAdsLoading(false);
+    }
+  };
+
+  const handleViewAd = (ad: MedicalAd) => {
+    setSelectedAd(ad);
+    setViewModalOpen(true);
+  };
+
+  const handleApproveAd = async (adId: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir approuver cette annonce ? Elle sera visible publiquement.')) {
+      return;
+    }
+
+    try {
+      // Get the ad details before updating
+      const ad = medicalAds.find(a => a.id === adId);
+      if (!ad) return;
+
+      const { error } = await (supabase as any)
+        .from('medical_ads')
+        .update({ status: 'approved' })
+        .eq('id', adId);
+
+      if (error) {
+        console.error('Error approving ad:', error);
+        toast({
+          title: "Erreur",
+          description: "Impossible d'approuver l'annonce.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Log the approval action
+      await logMedicalAdApproval(adId, ad.title, ad.provider.id);
+
+      // Update local state
+      setMedicalAds(ads => 
+        ads.map(ad => 
+          ad.id === adId ? { ...ad, status: 'approved' as const } : ad
+        )
+      );
+
+      toast({
+        title: "Annonce approuvée",
+        description: "L'annonce est maintenant visible publiquement.",
+      });
+    } catch (error) {
+      console.error('Error approving ad:', error);
+      toast({
+        title: "Erreur",
+        description: "Une erreur inattendue s'est produite.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRejectAd = async (adId: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir rejeter cette annonce ? Elle ne sera plus visible.')) {
+      return;
+    }
+
+    try {
+      // Get the ad details before updating
+      const ad = medicalAds.find(a => a.id === adId);
+      if (!ad) return;
+
+      const { error } = await (supabase as any)
+        .from('medical_ads')
+        .update({ status: 'rejected' })
+        .eq('id', adId);
+
+      if (error) {
+        console.error('Error rejecting ad:', error);
+        toast({
+          title: "Erreur",
+          description: "Impossible de rejeter l'annonce.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Log the rejection action
+      await logMedicalAdRejection(adId, ad.title, ad.provider.id);
+
+      // Update local state
+      setMedicalAds(ads => 
+        ads.map(ad => 
+          ad.id === adId ? { ...ad, status: 'rejected' as const } : ad
+        )
+      );
+
+      toast({
+        title: "Annonce rejetée",
+        description: "L'annonce a été rejetée et n'est plus visible.",
+        variant: "destructive",
+      });
+    } catch (error) {
+      console.error('Error rejecting ad:', error);
+      toast({
+        title: "Erreur",
+        description: "Une erreur inattendue s'est produite.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteAd = async (adId: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir supprimer définitivement cette annonce ?')) {
+      return;
+    }
+
+    try {
+      // Get the ad details before deleting
+      const ad = medicalAds.find(a => a.id === adId);
+      if (!ad) return;
+
+      const { error } = await (supabase as any)
+        .from('medical_ads')
+        .delete()
+        .eq('id', adId);
+
+      if (error) {
+        console.error('Error deleting ad:', error);
+        toast({
+          title: "Erreur",
+          description: "Impossible de supprimer l'annonce.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Log the deletion action
+      await logMedicalAdDeletion(adId, ad.title, ad.provider.id, ad.status);
+
+      // Update local state
+      setMedicalAds(ads => ads.filter(ad => ad.id !== adId));
+
+      toast({
+        title: "Annonce supprimée",
+        description: "L'annonce a été supprimée définitivement.",
+      });
+    } catch (error) {
+      console.error('Error deleting ad:', error);
+      toast({
+        title: "Erreur",
+        description: "Une erreur inattendue s'est produite.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const filteredProviders = pendingProviders.filter(p => {
     const matchesSearch = p.providerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           p.email.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  const filteredAds = medicalAds.filter(ad => {
+    const matchesSearch = ad.title.toLowerCase().includes(adsSearchQuery.toLowerCase()) ||
+                          ad.provider.business_name.toLowerCase().includes(adsSearchQuery.toLowerCase());
+    const matchesStatus = adsStatusFilter === 'all' || ad.status === adsStatusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  // Profile claims functions
+  const fetchProfileClaims = async () => {
+    try {
+      setClaimsLoading(true);
+      
+      const { data: claims, error } = await (supabase as any)
+        .from('profile_claims')
+        .select(`
+          *,
+          provider:providers(
+            id,
+            business_name,
+            provider_type,
+            address
+          ),
+          claimant:profiles!profile_claims_user_id_fkey(
+            id,
+            full_name
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching profile claims:', error);
+        toast({
+          title: "Erreur",
+          description: "Impossible de charger les revendications de profils.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Transform the data to match our interface
+      const transformedClaims = (claims || []).map((claim: any) => ({
+        ...claim,
+        claimant: {
+          id: claim.claimant?.id || '',
+          name: claim.claimant?.full_name || 'Utilisateur inconnu',
+          email: 'email@example.com', // Simplified for now
+        }
+      }));
+
+      setProfileClaims(transformedClaims);
+    } catch (error) {
+      console.error('Error fetching profile claims:', error);
+      toast({
+        title: "Erreur",
+        description: "Une erreur inattendue s'est produite.",
+        variant: "destructive",
+      });
+    } finally {
+      setClaimsLoading(false);
+    }
+  };
+
+  const handleViewClaim = (claim: ProfileClaim) => {
+    setSelectedClaim(claim);
+    setClaimViewModalOpen(true);
+  };
+
+  const handleApproveClaim = async (claimId: string) => {
+    if (!confirm('Êtes-vous sûr de vouloir approuver cette revendication ? Le profil sera transféré au demandeur.')) {
+      return;
+    }
+
+    try {
+      const claim = profileClaims.find(c => c.id === claimId);
+      if (!claim) return;
+
+      // Get current admin user ID
+      const { data: { user } } = await supabase.auth.getUser();
+      const adminUserId = user?.id || 'admin-user-id';
+
+      // Update the claim status
+      const { error: claimError } = await (supabase as any)
+        .from('profile_claims')
+        .update({ 
+          status: 'approved',
+          reviewed_by: adminUserId,
+          reviewed_at: new Date().toISOString()
+        })
+        .eq('id', claimId);
+
+      if (claimError) {
+        console.error('Error approving claim:', claimError);
+        throw new Error('Erreur lors de l\'approbation de la revendication');
+      }
+
+      // Update the provider profile
+      const { error: providerError } = await (supabase as any)
+        .from('providers')
+        .update({ 
+          user_id: claim.claimant.id,
+          is_claimed: true,
+          is_preloaded: false
+        })
+        .eq('id', claim.provider.id);
+
+      if (providerError) {
+        console.error('Error updating provider:', providerError);
+        throw new Error('Erreur lors de la mise à jour du profil');
+      }
+
+      // Log the approval action
+      await logProfileClaimApproval(
+        claimId,
+        claim.provider.id,
+        claim.provider.business_name,
+        claim.claimant.id,
+        claim.claimant.name
+      );
+
+      toast({
+        title: "Revendication approuvée",
+        description: "Le profil a été transféré au demandeur.",
+      });
+
+      // Refresh the claims list
+      fetchProfileClaims();
+    } catch (error) {
+      console.error('Error approving claim:', error);
+      toast({
+        title: "Erreur",
+        description: error instanceof Error ? error.message : "Impossible d'approuver la revendication.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRejectClaim = async (claimId: string) => {
+    const reason = prompt('Raison du rejet (optionnel):');
+    
+    if (!confirm('Êtes-vous sûr de vouloir rejeter cette revendication ?')) {
+      return;
+    }
+
+    try {
+      const claim = profileClaims.find(c => c.id === claimId);
+      if (!claim) return;
+
+      // Get current admin user ID
+      const { data: { user } } = await supabase.auth.getUser();
+      const adminUserId = user?.id || 'admin-user-id';
+
+      const { error } = await (supabase as any)
+        .from('profile_claims')
+        .update({ 
+          status: 'rejected',
+          notes: reason || null,
+          reviewed_by: adminUserId,
+          reviewed_at: new Date().toISOString()
+        })
+        .eq('id', claimId);
+
+      if (error) {
+        console.error('Error rejecting claim:', error);
+        toast({
+          title: "Erreur",
+          description: "Impossible de rejeter la revendication.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Log the rejection action
+      await logProfileClaimRejection(
+        claimId,
+        claim.provider.id,
+        claim.provider.business_name,
+        claim.claimant.id,
+        claim.claimant.name,
+        reason || undefined
+      );
+
+      toast({
+        title: "Revendication rejetée",
+        description: "Le demandeur a été notifié du rejet.",
+        variant: "destructive",
+      });
+
+      // Refresh the claims list
+      fetchProfileClaims();
+    } catch (error) {
+      console.error('Error rejecting claim:', error);
+      toast({
+        title: "Erreur",
+        description: "Une erreur inattendue s'est produite.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const filteredClaims = profileClaims.filter(claim => {
+    const matchesSearch = claim.provider.business_name.toLowerCase().includes(claimsSearchQuery.toLowerCase()) ||
+                          claim.claimant.name.toLowerCase().includes(claimsSearchQuery.toLowerCase());
+    const matchesStatus = claimsStatusFilter === 'all' || claim.status === claimsStatusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  // Fetch medical ads and profile claims when component mounts
+  useEffect(() => {
+    fetchMedicalAds();
+    fetchProfileClaims();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 py-8 px-4">
@@ -189,10 +675,12 @@ export default function AdminDashboard() {
 
         {/* Main Content */}
         <Tabs defaultValue="approvals" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="approvals">
               Approbations ({stats.pendingApprovals})
             </TabsTrigger>
+            <TabsTrigger value="ads">Annonces</TabsTrigger>
+            <TabsTrigger value="import">Import</TabsTrigger>
             <TabsTrigger value="analytics">Analytiques</TabsTrigger>
             <TabsTrigger value="moderation">Modération</TabsTrigger>
             <TabsTrigger value="settings">Configuration</TabsTrigger>
@@ -316,6 +804,143 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
 
+            {/* Profile Claims Section */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Revendications de profils</CardTitle>
+                    <CardDescription>Gérer les demandes de revendication de profils préchargés</CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Rechercher..."
+                        className="pl-10 w-64"
+                        value={claimsSearchQuery}
+                        onChange={(e) => setClaimsSearchQuery(e.target.value)}
+                      />
+                    </div>
+                    <Select value={claimsStatusFilter} onValueChange={setClaimsStatusFilter}>
+                      <SelectTrigger className="w-40">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Tous</SelectItem>
+                        <SelectItem value="pending">En attente</SelectItem>
+                        <SelectItem value="approved">Approuvés</SelectItem>
+                        <SelectItem value="rejected">Rejetés</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button onClick={fetchProfileClaims} variant="outline" disabled={claimsLoading}>
+                      {claimsLoading ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                      ) : (
+                        'Actualiser'
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {claimsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Profil revendiqué</TableHead>
+                        <TableHead>Demandeur</TableHead>
+                        <TableHead>Raison</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Statut</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredClaims.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                            Aucune revendication trouvée
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredClaims.map((claim) => (
+                          <TableRow key={claim.id}>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{claim.provider.business_name}</p>
+                                <p className="text-sm text-muted-foreground">{claim.provider.address}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{claim.claimant.name}</p>
+                                <p className="text-sm text-muted-foreground">{claim.claimant.email}</p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <p className="text-sm max-w-xs truncate" title={claim.notes}>
+                                {claim.notes}
+                              </p>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-sm text-muted-foreground">
+                                {new Date(claim.created_at).toLocaleDateString('fr-FR')}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <Badge 
+                                variant={
+                                  claim.status === 'pending' ? 'secondary' :
+                                  claim.status === 'approved' ? 'default' : 'destructive'
+                                }
+                              >
+                                {claim.status === 'pending' ? 'En attente' :
+                                 claim.status === 'approved' ? 'Approuvé' : 'Rejeté'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => handleViewClaim(claim)}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                {claim.status === 'pending' && (
+                                  <>
+                                    <Button 
+                                      size="sm" 
+                                      variant="default"
+                                      onClick={() => handleApproveClaim(claim.id)}
+                                    >
+                                      <CheckCircle className="h-4 w-4" />
+                                    </Button>
+                                    <Button 
+                                      size="sm" 
+                                      variant="destructive"
+                                      onClick={() => handleRejectClaim(claim.id)}
+                                    >
+                                      <XCircle className="h-4 w-4" />
+                                    </Button>
+                                  </>
+                                )}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+
             {/* Recent Activity */}
             <Card>
               <CardHeader>
@@ -339,6 +964,242 @@ export default function AdminDashboard() {
                     </div>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Medical Ads Tab */}
+          <TabsContent value="ads" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Modération des annonces médicales</CardTitle>
+                    <CardDescription>Approuver, rejeter ou supprimer les annonces des prestataires</CardDescription>
+                  </div>
+                  <div className="flex gap-2">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Rechercher annonces..."
+                        className="pl-10 w-64"
+                        value={adsSearchQuery}
+                        onChange={(e) => setAdsSearchQuery(e.target.value)}
+                      />
+                    </div>
+                    <Select value={adsStatusFilter} onValueChange={setAdsStatusFilter}>
+                      <SelectTrigger className="w-40">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Tous</SelectItem>
+                        <SelectItem value="pending">En attente</SelectItem>
+                        <SelectItem value="approved">Approuvées</SelectItem>
+                        <SelectItem value="rejected">Rejetées</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button onClick={fetchMedicalAds} variant="outline" disabled={adsLoading}>
+                      {adsLoading ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                      ) : (
+                        'Actualiser'
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {adsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Prestataire</TableHead>
+                        <TableHead>Titre de l'annonce</TableHead>
+                        <TableHead>Statut</TableHead>
+                        <TableHead>Date de création</TableHead>
+                        <TableHead>Période</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredAds.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                            {adsSearchQuery || adsStatusFilter !== 'all' 
+                              ? 'Aucune annonce trouvée avec ces critères'
+                              : 'Aucune annonce médicale'
+                            }
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredAds.map((ad) => (
+                          <TableRow key={ad.id}>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{ad.provider.business_name}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {ad.provider.provider_type === 'doctor' ? 'Médecin' :
+                                   ad.provider.provider_type === 'clinic' ? 'Clinique' :
+                                   ad.provider.provider_type === 'pharmacy' ? 'Pharmacie' :
+                                   ad.provider.provider_type === 'lab' ? 'Laboratoire' : 'Hôpital'}
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{ad.title}</p>
+                                <p className="text-sm text-muted-foreground line-clamp-2">
+                                  {ad.content.length > 60 
+                                    ? `${ad.content.substring(0, 60)}...` 
+                                    : ad.content
+                                  }
+                                </p>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge 
+                                variant={
+                                  ad.status === 'pending' ? 'secondary' :
+                                  ad.status === 'approved' ? 'default' : 'destructive'
+                                }
+                              >
+                                {ad.status === 'pending' ? 'En attente' :
+                                 ad.status === 'approved' ? 'Approuvée' : 'Rejetée'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <span className="text-sm text-muted-foreground">
+                                {new Date(ad.created_at).toLocaleDateString('fr-FR')}
+                              </span>
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-sm">
+                                <div className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  <span>{new Date(ad.start_date).toLocaleDateString('fr-FR')}</span>
+                                </div>
+                                {ad.end_date && (
+                                  <div className="text-muted-foreground">
+                                    → {new Date(ad.end_date).toLocaleDateString('fr-FR')}
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button 
+                                  size="sm" 
+                                  variant="outline"
+                                  onClick={() => handleViewAd(ad)}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                {ad.status === 'pending' && (
+                                  <>
+                                    <Button 
+                                      size="sm" 
+                                      variant="default"
+                                      onClick={() => handleApproveAd(ad.id)}
+                                    >
+                                      <CheckCircle className="h-4 w-4" />
+                                    </Button>
+                                    <Button 
+                                      size="sm" 
+                                      variant="destructive"
+                                      onClick={() => handleRejectAd(ad.id)}
+                                    >
+                                      <XCircle className="h-4 w-4" />
+                                    </Button>
+                                  </>
+                                )}
+                                <Button 
+                                  size="sm" 
+                                  variant="destructive"
+                                  onClick={() => handleDeleteAd(ad.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Import Tab */}
+          <TabsContent value="import" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Import en masse de prestataires</CardTitle>
+                <CardDescription>
+                  Importez plusieurs profils de prestataires à partir d'un fichier CSV ou JSON
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <BulkImportForm />
+              </CardContent>
+            </Card>
+
+            {/* Import History */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Historique des imports</CardTitle>
+                <CardDescription>Derniers imports effectués par les administrateurs</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Administrateur</TableHead>
+                      <TableHead>Nombre de profils</TableHead>
+                      <TableHead>Succès</TableHead>
+                      <TableHead>Erreurs</TableHead>
+                      <TableHead>Statut</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <TableRow>
+                      <TableCell>23/11/2025 14:30</TableCell>
+                      <TableCell>Admin User</TableCell>
+                      <TableCell>25</TableCell>
+                      <TableCell>23</TableCell>
+                      <TableCell>2</TableCell>
+                      <TableCell>
+                        <Badge variant="default">Terminé</Badge>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>22/11/2025 09:15</TableCell>
+                      <TableCell>Admin User</TableCell>
+                      <TableCell>50</TableCell>
+                      <TableCell>50</TableCell>
+                      <TableCell>0</TableCell>
+                      <TableCell>
+                        <Badge variant="default">Terminé</Badge>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell>21/11/2025 16:45</TableCell>
+                      <TableCell>Admin User</TableCell>
+                      <TableCell>12</TableCell>
+                      <TableCell>10</TableCell>
+                      <TableCell>2</TableCell>
+                      <TableCell>
+                        <Badge variant="default">Terminé</Badge>
+                      </TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </TabsContent>
@@ -450,6 +1311,265 @@ export default function AdminDashboard() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Medical Ad View Modal */}
+      <Dialog open={viewModalOpen} onOpenChange={setViewModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Détails de l'annonce médicale</DialogTitle>
+            <DialogDescription>
+              Examinez le contenu complet de l'annonce avant de prendre une décision
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedAd && (
+            <div className="space-y-6">
+              {/* Provider Info */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg">{selectedAd.provider.business_name}</CardTitle>
+                  <CardDescription>
+                    {selectedAd.provider.provider_type === 'doctor' ? 'Médecin' :
+                     selectedAd.provider.provider_type === 'clinic' ? 'Clinique' :
+                     selectedAd.provider.provider_type === 'pharmacy' ? 'Pharmacie' :
+                     selectedAd.provider.provider_type === 'lab' ? 'Laboratoire' : 'Hôpital'}
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+
+              {/* Ad Content */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>{selectedAd.title}</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Badge 
+                      variant={
+                        selectedAd.status === 'pending' ? 'secondary' :
+                        selectedAd.status === 'approved' ? 'default' : 'destructive'
+                      }
+                    >
+                      {selectedAd.status === 'pending' ? 'En attente' :
+                       selectedAd.status === 'approved' ? 'Approuvée' : 'Rejetée'}
+                    </Badge>
+                    <span className="text-sm text-muted-foreground">
+                      Créée le {new Date(selectedAd.created_at).toLocaleDateString('fr-FR')}
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <h4 className="font-medium mb-2">Contenu</h4>
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                      {selectedAd.content}
+                    </p>
+                  </div>
+
+                  {selectedAd.image_url && (
+                    <div>
+                      <h4 className="font-medium mb-2">Image</h4>
+                      <img
+                        src={selectedAd.image_url}
+                        alt={selectedAd.title}
+                        className="w-full max-w-md h-48 object-cover rounded-lg border"
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <h4 className="font-medium mb-2">Période d'affichage</h4>
+                    <div className="flex items-center gap-2 text-sm">
+                      <Calendar className="h-4 w-4" />
+                      <span>Du {new Date(selectedAd.start_date).toLocaleDateString('fr-FR')}</span>
+                      {selectedAd.end_date && (
+                        <>
+                          <span>au</span>
+                          <span>{new Date(selectedAd.end_date).toLocaleDateString('fr-FR')}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Actions */}
+              {selectedAd.status === 'pending' && (
+                <div className="flex gap-3">
+                  <Button
+                    variant="default"
+                    onClick={() => {
+                      handleApproveAd(selectedAd.id);
+                      setViewModalOpen(false);
+                    }}
+                    className="flex-1"
+                  >
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Approuver l'annonce
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      handleRejectAd(selectedAd.id);
+                      setViewModalOpen(false);
+                    }}
+                    className="flex-1"
+                  >
+                    <XCircle className="mr-2 h-4 w-4" />
+                    Rejeter l'annonce
+                  </Button>
+                </div>
+              )}
+              
+              <div className="flex justify-end">
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    handleDeleteAd(selectedAd.id);
+                    setViewModalOpen(false);
+                  }}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Supprimer définitivement
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Profile Claim View Modal */}
+      <Dialog open={claimViewModalOpen} onOpenChange={setClaimViewModalOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Détails de la revendication</DialogTitle>
+            <DialogDescription>
+              Examinez la demande de revendication et les documents justificatifs
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedClaim && (
+            <div className="space-y-6">
+              {/* Provider Info */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg">Profil revendiqué</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="font-medium">{selectedClaim.provider.business_name}</p>
+                      <p className="text-sm text-muted-foreground">{selectedClaim.provider.provider_type}</p>
+                      <p className="text-sm text-muted-foreground">{selectedClaim.provider.address}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Claimant Info */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-lg">Demandeur</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="font-medium">{selectedClaim.claimant.name}</p>
+                      <p className="text-sm text-muted-foreground">{selectedClaim.claimant.email}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">
+                        Demande soumise le {new Date(selectedClaim.created_at).toLocaleDateString('fr-FR')}
+                      </p>
+                      <Badge 
+                        variant={
+                          selectedClaim.status === 'pending' ? 'secondary' :
+                          selectedClaim.status === 'approved' ? 'default' : 'destructive'
+                        }
+                      >
+                        {selectedClaim.status === 'pending' ? 'En attente' :
+                         selectedClaim.status === 'approved' ? 'Approuvée' : 'Rejetée'}
+                      </Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Claim Details */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Justification</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <h4 className="font-medium mb-2">Raison de la revendication</h4>
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap bg-muted p-3 rounded">
+                      {selectedClaim.notes}
+                    </p>
+                  </div>
+
+                  {selectedClaim.documentation && selectedClaim.documentation.length > 0 && (
+                    <div>
+                      <h4 className="font-medium mb-2">Documents justificatifs</h4>
+                      <div className="space-y-2">
+                        {selectedClaim.documentation.map((doc, index) => (
+                          <div key={index} className="flex items-center gap-2 p-2 bg-muted rounded">
+                            <FileText className="h-4 w-4" />
+                            <span className="text-sm">Document {index + 1}</span>
+                            <Button size="sm" variant="outline" className="ml-auto">
+                              Télécharger
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Actions */}
+              {selectedClaim.status === 'pending' && (
+                <div className="flex gap-3">
+                  <Button
+                    variant="default"
+                    onClick={() => {
+                      handleApproveClaim(selectedClaim.id);
+                      setClaimViewModalOpen(false);
+                    }}
+                    className="flex-1"
+                  >
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Approuver la revendication
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      handleRejectClaim(selectedClaim.id);
+                      setClaimViewModalOpen(false);
+                    }}
+                    className="flex-1"
+                  >
+                    <XCircle className="mr-2 h-4 w-4" />
+                    Rejeter la revendication
+                  </Button>
+                </div>
+              )}
+
+              {selectedClaim.reviewed_at && (
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm">Historique de révision</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground">
+                      Révisé le {new Date(selectedClaim.reviewed_at).toLocaleDateString('fr-FR')} 
+                      {selectedClaim.reviewed_by && ` par ${selectedClaim.reviewed_by}`}
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

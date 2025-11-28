@@ -1,0 +1,100 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // ============================================
+    // HELPER FUNCTIONS
+    // ============================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isValidImage() {
+      return request.resource.contentType.matches('image/.*') &&
+             request.resource.size < 5 * 1024 * 1024; // 5MB max
+    }
+    
+    function isValidDocument() {
+      return (request.resource.contentType.matches('image/.*') ||
+              request.resource.contentType == 'application/pdf') &&
+             request.resource.size < 10 * 1024 * 1024; // 10MB max
+    }
+    
+    // ============================================
+    // PROVIDER DOCUMENTS
+    // ============================================
+    
+    match /provider-documents/{providerId}/{allPaths=**} {
+      // Anyone can read (public documents)
+      allow read: if true;
+      
+      // Only the provider owner can upload
+      allow write: if isAuthenticated() && isValidDocument();
+    }
+    
+    // ============================================
+    // PROVIDER PHOTOS
+    // ============================================
+    
+    match /provider-photos/{providerId}/{allPaths=**} {
+      // Anyone can read photos
+      allow read: if true;
+      
+      // Only the provider owner can upload
+      allow write: if isAuthenticated() && isValidImage();
+    }
+    
+    // ============================================
+    // USER AVATARS
+    // ============================================
+    
+    match /avatars/{userId}/{allPaths=**} {
+      // Anyone can read avatars
+      allow read: if true;
+      
+      // Only the user can upload their avatar
+      allow write: if isOwner(userId) && isValidImage();
+    }
+    
+    // ============================================
+    // MEDICAL AD IMAGES
+    // ============================================
+    
+    match /medical-ads/{adId}/{allPaths=**} {
+      // Anyone can read approved ad images
+      allow read: if true;
+      
+      // Authenticated users can upload
+      allow write: if isAuthenticated() && isValidImage();
+    }
+    
+    // ============================================
+    // VERIFICATION DOCUMENTS
+    // ============================================
+    
+    match /verifications/{providerId}/{allPaths=**} {
+      // Only provider and admin can read
+      allow read: if isAuthenticated();
+      
+      // Only provider can upload
+      allow write: if isAuthenticated() && isValidDocument();
+    }
+    
+    // ============================================
+    // CLAIM DOCUMENTS
+    // ============================================
+    
+    match /claims/{claimId}/{allPaths=**} {
+      // Only claimant and admin can read
+      allow read: if isAuthenticated();
+      
+      // Only authenticated users can upload
+      allow write: if isAuthenticated() && isValidDocument();
+    }
+  }
+}

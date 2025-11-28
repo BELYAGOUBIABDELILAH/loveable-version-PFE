@@ -10,132 +10,152 @@ import { useScrollReveal } from '@/hooks/useScrollReveal';
 import { useToastNotifications } from '@/hooks/useToastNotifications';
 import ToastContainer from '@/components/ToastContainer';
 import SkeletonCard from '@/components/SkeletonCard';
+import { favoritesService, type FavoriteWithProvider } from '@/services/favoritesService';
+import { Link } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 const FavoritesPage = () => {
-  const [favorites, setFavorites] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   
   const { isAuthenticated } = useAuth();
   const headerRef = useScrollReveal();
   const { toasts, addToast } = useToastNotifications();
+  const queryClient = useQueryClient();
 
   const categories = [
     'Tous',
-    'Hôpitaux',
-    'Cliniques', 
-    'Médecins Généralistes',
-    'Spécialistes',
-    'Pharmacies',
-    'Laboratoires'
+    'doctor',
+    'clinic',
+    'hospital',
+    'pharmacy',
+    'laboratory'
   ];
 
-  // Simulated favorites data
-  const mockFavorites = [
-    {
-      id: 1,
-      name: "Dr. Benali (Cardiologue)",
-      type: "Spécialiste",
-      specialty: "Cardiologie",
-      location: "Hay El Badr",
-      rating: 4.9,
-      isVerified: true,
-      isOpen: true,
-      phone: "+213 48 55 XX XX",
-      nextAvailable: "Aujourd'hui 14h",
-      addedDate: "2024-01-15",
-      image: "/placeholder.svg"
-    },
-    {
-      id: 2,
-      name: "Pharmacie Centrale",
-      type: "Pharmacie",
-      specialty: "Pharmacie",
-      location: "Centre Ville",
-      rating: 4.7,
-      isVerified: true,
-      isOpen: true,
-      phone: "+213 48 56 XX XX",
-      nextAvailable: "Ouvert 24h/24",
-      addedDate: "2024-01-10",
-      image: "/placeholder.svg"
-    },
-    {
-      id: 3,
-      name: "Clinique Ibn Sina",
-      type: "Clinique",
-      specialty: "Médecine Générale",
-      location: "Sidi Bel Abbès Est",
-      rating: 4.6,
-      isVerified: true,
-      isOpen: false,
-      phone: "+213 48 57 XX XX",
-      nextAvailable: "Demain 08h",
-      addedDate: "2024-01-05",
-      image: "/placeholder.svg"
-    },
-    {
-      id: 4,
-      name: "Laboratoire Atlas",
-      type: "Laboratoire",
-      specialty: "Analyses Médicales",
-      location: "Centre Ville",
-      rating: 4.8,
-      isVerified: true,
-      isOpen: true,
-      phone: "+213 48 58 XX XX",
-      nextAvailable: "Aujourd'hui 16h",
-      addedDate: "2024-01-03",
-      image: "/placeholder.svg"
-    }
-  ];
+  const getCategoryDisplayName = (category: string) => {
+    const categoryMap: Record<string, string> = {
+      'Tous': 'Tous',
+      'doctor': 'Médecins',
+      'clinic': 'Cliniques',
+      'hospital': 'Hôpitaux',
+      'pharmacy': 'Pharmacies',
+      'laboratory': 'Laboratoires'
+    };
+    return categoryMap[category] || category;
+  };
 
+  // Use TanStack Query for data fetching with real-time updates
+  const {
+    data: favorites = [],
+    isLoading,
+    error,
+    refetch
+  } = useQuery({
+    queryKey: ['favorites'],
+    queryFn: () => favoritesService.getFavorites(),
+    enabled: isAuthenticated,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnWindowFocus: true,
+  });
+
+  // Set up real-time subscription for favorites updates
   useEffect(() => {
-    // Simulate loading favorites
-    const loadFavorites = async () => {
-      setIsLoading(true);
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      if (isAuthenticated) {
-        setFavorites(mockFavorites);
+    if (!isAuthenticated) return;
+
+    let subscription: any;
+
+    const setupSubscription = async () => {
+      try {
+        subscription = await favoritesService.subscribeToFavorites(() => {
+          // Invalidate and refetch favorites when changes occur
+          queryClient.invalidateQueries({ queryKey: ['favorites'] });
+        });
+      } catch (err) {
+        console.error('Failed to set up favorites subscription:', err);
       }
-      setIsLoading(false);
     };
 
-    loadFavorites();
-  }, [isAuthenticated]);
+    setupSubscription();
 
-  const handleRemoveFavorite = (id: number) => {
-    setFavorites(prev => prev.filter(fav => fav.id !== id));
-    addToast({
-      type: 'success',
-      title: 'Favori supprimé',
-      message: 'Le prestataire a été retiré de vos favoris'
-    });
+    return () => {
+      if (subscription) {
+        subscription.unsubscribe();
+      }
+    };
+  }, [isAuthenticated, queryClient]);
+
+  // Mutation for removing favorites with optimistic updates
+  const removeFavoriteMutation = useMutation({
+    mutationFn: (providerId: string) => favoritesService.removeFavorite(providerId),
+    onMutate: async (providerId) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['favorites'] });
+
+      // Snapshot the previous value
+      const previousFavorites = queryClient.getQueryData<FavoriteWithProvider[]>(['favorites']);
+
+      // Optimistically update to the new value
+      queryClient.setQueryData<FavoriteWithProvider[]>(['favorites'], (old) =>
+        old?.filter(fav => fav.provider_id !== providerId) || []
+      );
+
+      // Return a context object with the snapshotted value
+      return { previousFavorites };
+    },
+    onError: (err, providerId, context) => {
+      // If the mutation fails, use the context returned from onMutate to roll back
+      queryClient.setQueryData(['favorites'], context?.previousFavorites);
+      
+      const errorMessage = err instanceof Error ? err.message : 'Une erreur est survenue';
+      addToast({
+        type: 'error',
+        title: 'Erreur',
+        message: `Impossible de supprimer le favori: ${errorMessage}`
+      });
+    },
+    onSuccess: (_, providerId) => {
+      // Find the provider name for the toast
+      const provider = favorites.find(fav => fav.provider_id === providerId)?.provider;
+      addToast({
+        type: 'success',
+        title: 'Favori supprimé',
+        message: `${provider?.business_name || 'Le prestataire'} a été retiré de vos favoris`
+      });
+    },
+    onSettled: () => {
+      // Always refetch after error or success
+      queryClient.invalidateQueries({ queryKey: ['favorites'] });
+    },
+  });
+
+  const handleRemoveFavorite = (providerId: string) => {
+    removeFavoriteMutation.mutate(providerId);
   };
 
   const handleBookAppointment = (provider: any) => {
     addToast({
       type: 'info',
       title: 'Rendez-vous',
-      message: `Redirection vers la prise de rendez-vous avec ${provider.name}`
+      message: `Redirection vers la prise de rendez-vous avec ${provider.business_name}`
     });
   };
 
   const handleCall = (provider: any) => {
+    // Open phone dialer
+    window.open(`tel:${provider.phone}`, '_self');
     addToast({
       type: 'info',
       title: 'Appel',
-      message: `Appel vers ${provider.name} - ${provider.phone}`
+      message: `Appel vers ${provider.business_name} - ${provider.phone}`
     });
   };
 
   const filteredFavorites = favorites.filter(favorite => {
+    const provider = favorite.provider;
     const matchesSearch = !searchQuery || 
-      favorite.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      favorite.specialty.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = !selectedCategory || selectedCategory === 'Tous' || favorite.type === selectedCategory;
+      provider.business_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (provider.specialty_id && provider.specialty_id.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesCategory = !selectedCategory || selectedCategory === 'Tous' || provider.provider_type === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
@@ -204,7 +224,7 @@ const FavoritesPage = () => {
                   <SelectContent>
                     {categories.map((category) => (
                       <SelectItem key={category} value={category}>
-                        {category}
+                        {getCategoryDisplayName(category)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -230,6 +250,19 @@ const FavoritesPage = () => {
               <SkeletonCard key={index} />
             ))}
           </div>
+        ) : error ? (
+          <Card className="glass-card">
+            <CardContent className="p-12 text-center">
+              <Heart className="mx-auto mb-4 text-destructive" size={64} />
+              <h3 className="text-2xl font-semibold mb-4">Erreur de chargement</h3>
+              <p className="text-muted-foreground mb-6">
+                {error instanceof Error ? error.message : 'Impossible de charger vos favoris.'}
+              </p>
+              <Button onClick={() => refetch()}>
+                Réessayer
+              </Button>
+            </CardContent>
+          </Card>
         ) : filteredFavorites.length === 0 ? (
           <Card className="glass-card">
             <CardContent className="p-12 text-center">
@@ -253,89 +286,93 @@ const FavoritesPage = () => {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredFavorites.map((favorite, index) => (
-              <Card 
-                key={favorite.id} 
-                className="glass-card hover-lift transition-all duration-300 animate-scale-in"
-                style={{ animationDelay: `${index * 0.1}s` }}
-              >
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-semibold text-lg line-clamp-1">{favorite.name}</h3>
-                        {favorite.isVerified && (
-                          <Badge variant="secondary" className="text-xs">✓ Vérifié</Badge>
-                        )}
+            {filteredFavorites.map((favorite, index) => {
+              const provider = favorite.provider;
+              return (
+                <Card 
+                  key={favorite.id} 
+                  className="glass-card hover-lift transition-all duration-300 animate-scale-in"
+                  style={{ animationDelay: `${index * 0.1}s` }}
+                >
+                  <CardContent className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Link 
+                            to={`/provider/${provider.id}`}
+                            className="hover:text-primary transition-colors"
+                          >
+                            <h3 className="font-semibold text-lg line-clamp-1 hover:text-primary">
+                              {provider.business_name}
+                            </h3>
+                          </Link>
+                          {provider.verification_status === 'verified' && (
+                            <Badge variant="secondary" className="text-xs">✓ Vérifié</Badge>
+                          )}
+                        </div>
+                        <p className="text-muted-foreground text-sm capitalize">
+                          {getCategoryDisplayName(provider.provider_type)}
+                        </p>
                       </div>
-                      <p className="text-muted-foreground text-sm">{favorite.specialty}</p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleRemoveFavorite(favorite.id)}
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                    >
-                      <Trash2 size={18} />
-                    </Button>
-                  </div>
-                  
-                  <div className="space-y-3 mb-4">
-                    <div className="flex items-center gap-2">
-                      <MapPin size={16} className="text-muted-foreground flex-shrink-0" />
-                      <span className="text-sm">{favorite.location}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveFavorite(provider.id)}
+                        disabled={removeFavoriteMutation.isPending}
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      >
+                        <Trash2 size={18} />
+                      </Button>
                     </div>
                     
-                    <div className="flex items-center gap-2">
-                      <Phone size={16} className="text-muted-foreground flex-shrink-0" />
-                      <span className="text-sm">{favorite.phone}</span>
-                    </div>
-                    
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1">
-                        <Star size={16} className="text-yellow-500 fill-yellow-500" />
-                        <span className="text-sm">{favorite.rating}</span>
+                    <div className="space-y-3 mb-4">
+                      <div className="flex items-center gap-2">
+                        <MapPin size={16} className="text-muted-foreground flex-shrink-0" />
+                        <span className="text-sm">{provider.address}</span>
                       </div>
                       
-                      <Badge variant={favorite.isOpen ? 'default' : 'secondary'} className="text-xs">
-                        {favorite.isOpen ? 'Ouvert' : 'Fermé'}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <Phone size={16} className="text-muted-foreground flex-shrink-0" />
+                        <span className="text-sm">{provider.phone}</span>
+                      </div>
+                      
+                      {provider.is_emergency && (
+                        <div className="flex items-center gap-2">
+                          <Clock size={16} className="text-green-600 flex-shrink-0" />
+                          <span className="text-sm text-green-600">Service d'urgence 24h/24</span>
+                        </div>
+                      )}
                     </div>
                     
-                    <div className="flex items-center gap-2">
-                      <Clock size={16} className="text-muted-foreground flex-shrink-0" />
-                      <span className="text-sm">{favorite.nextAvailable}</span>
+                    <div className="flex gap-2">
+                      <Button 
+                        size="sm" 
+                        className="flex-1"
+                        onClick={() => handleBookAppointment(provider)}
+                      >
+                        <Calendar className="mr-1" size={14} />
+                        RDV
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="flex-1"
+                        onClick={() => handleCall(provider)}
+                      >
+                        <Phone className="mr-1" size={14} />
+                        Appeler
+                      </Button>
                     </div>
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <Button 
-                      size="sm" 
-                      className="flex-1"
-                      onClick={() => handleBookAppointment(favorite)}
-                    >
-                      <Calendar className="mr-1" size={14} />
-                      RDV
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      className="flex-1"
-                      onClick={() => handleCall(favorite)}
-                    >
-                      <Phone className="mr-1" size={14} />
-                      Appeler
-                    </Button>
-                  </div>
-                  
-                  <div className="mt-3 pt-3 border-t border-border/50">
-                    <p className="text-xs text-muted-foreground">
-                      Ajouté le {new Date(favorite.addedDate).toLocaleDateString('fr-FR')}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    
+                    <div className="mt-3 pt-3 border-t border-border/50">
+                      <p className="text-xs text-muted-foreground">
+                        Ajouté le {new Date(favorite.created_at).toLocaleDateString('fr-FR')}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>

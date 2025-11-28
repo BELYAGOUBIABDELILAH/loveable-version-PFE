@@ -16,6 +16,7 @@ import ScrollToTop from "@/components/ScrollToTop";
 import LoadingSpinner from "@/components/LoadingSpinner";
 import SkeletonCard from "@/components/SkeletonCard";
 import CounterAnimation from "@/components/CounterAnimation";
+import { FavoriteButton } from "@/components/FavoriteButton";
 import { useScrollReveal } from "@/hooks/useScrollReveal";
 import { useToastNotifications } from "@/hooks/useToastNotifications";
 import ToastContainer from "@/components/ToastContainer";
@@ -267,6 +268,11 @@ const Index = () => {
                         </div>
                         <p className="text-muted-foreground text-sm">{provider.type}</p>
                       </div>
+                      <FavoriteButton
+                        providerId={provider.id.toString()}
+                        variant="ghost"
+                        size="sm"
+                      />
                     </div>
                     
                     <div className="space-y-2 text-sm">

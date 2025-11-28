@@ -1,241 +1,394 @@
-import React, { useState } from 'react';
-import { Upload, User, Settings, BarChart3, MessageSquare, Star, Calendar, Camera } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, MapPin, Phone, Star, ChevronLeft, ChevronRight, Loader2, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLanguage } from '@/contexts/LanguageContext';
 import AnimatedTransition from '@/components/AnimatedTransition';
+import { supabase } from '@/integrations/supabase/client';
+import { Tables } from '@/integrations/supabase/types';
+import { useNavigate } from 'react-router-dom';
+import { FavoriteButton } from '@/components/FavoriteButton';
+import { OFFLINE_MODE } from '@/config/app';
+import { getProviders } from '@/data/providers';
+
+type Provider = Tables<"providers">;
+
+const ITEMS_PER_PAGE = 12;
 
 const ProvidersPage = () => {
   const { t } = useLanguage();
-  const [activeTab, setActiveTab] = useState<'register' | 'dashboard'>('register');
+  const navigate = useNavigate();
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState<string>('all');
+  const [filterVerified, setFilterVerified] = useState<string>('all');
 
-  const RegistrationForm = () => (
-    <div className="space-y-6">
-      <div className="text-center mb-8">
-        <h2 className="text-2xl font-bold mb-2">Rejoindre CityHealth</h2>
-        <p className="text-muted-foreground">Inscrivez-vous en tant que prestataire de santé</p>
-      </div>
+  // Fetch providers with pagination and filters
+  useEffect(() => {
+    fetchProviders();
+  }, [currentPage, searchQuery, filterType, filterVerified]);
 
-      <div className="grid md:grid-cols-2 gap-6">
-        <Card className="glass-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Informations personnelles
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <Input placeholder="Nom" />
-              <Input placeholder="Prénom" />
-            </div>
-            <Input placeholder="Email professionnel" type="email" />
-            <Input placeholder="Téléphone" type="tel" />
-            <Select>
-              <SelectTrigger>
-                <SelectValue placeholder="Type de prestataire" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="doctor">Médecin</SelectItem>
-                <SelectItem value="clinic">Clinique</SelectItem>
-                <SelectItem value="pharmacy">Pharmacie</SelectItem>
-                <SelectItem value="lab">Laboratoire</SelectItem>
-              </SelectContent>
-            </Select>
-          </CardContent>
-        </Card>
+  const fetchProviders = async () => {
+    try {
+      setLoading(true);
 
-        <Card className="glass-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Settings className="h-5 w-5" />
-              Informations professionnelles
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Input placeholder="Spécialité" />
-            <Input placeholder="Numéro d'ordre / Licence" />
-            <Textarea placeholder="Adresse du cabinet" />
-            <div className="grid grid-cols-2 gap-4">
-              <Input placeholder="Ville" />
-              <Input placeholder="Code postal" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      if (OFFLINE_MODE) {
+        // Mode offline: utiliser les données mock
+        let mockData = getProviders().map(p => ({
+          id: p.id,
+          user_id: null,
+          business_name: p.name,
+          provider_type: p.type as any,
+          specialty_id: null,
+          phone: p.phone,
+          email: null,
+          address: p.address,
+          city: p.city,
+          latitude: p.lat,
+          longitude: p.lng,
+          description: p.description,
+          avatar_url: p.image,
+          cover_image_url: null,
+          website: null,
+          verification_status: p.verified ? 'verified' : 'pending',
+          is_emergency: p.emergency,
+          is_preloaded: p.is_preloaded,
+          is_claimed: p.is_claimed,
+          accessibility_features: p.accessibility_features,
+          home_visit_available: p.home_visit_available,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }));
 
-      <Card className="glass-card">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Upload className="h-5 w-5" />
-            Documents et certification
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="border-2 border-dashed border-muted rounded-lg p-6 text-center">
-              <Camera className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Photo de profil</p>
-              <Button variant="outline" size="sm" className="mt-2">
-                Télécharger
-              </Button>
-            </div>
-            <div className="border-2 border-dashed border-muted rounded-lg p-6 text-center">
-              <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Diplôme / Certificat</p>
-              <Button variant="outline" size="sm" className="mt-2">
-                Télécharger
-              </Button>
-            </div>
-          </div>
-          <Textarea placeholder="Présentation professionnelle (optionnel)" />
-        </CardContent>
-      </Card>
+        // Apply search filter
+        if (searchQuery.trim()) {
+          const query = searchQuery.toLowerCase();
+          mockData = mockData.filter(p =>
+            p.business_name.toLowerCase().includes(query) ||
+            p.address.toLowerCase().includes(query) ||
+            (p.city || '').toLowerCase().includes(query)
+          );
+        }
 
-      <div className="text-center">
-        <Button size="lg" className="w-full md:w-auto px-8">
-          Soumettre ma candidature
-        </Button>
-        <p className="text-sm text-muted-foreground mt-2">
-          Votre profil sera vérifié par notre équipe sous 48h
-        </p>
-      </div>
-    </div>
-  );
+        // Apply type filter
+        if (filterType !== 'all') {
+          mockData = mockData.filter(p => p.provider_type === filterType);
+        }
 
-  const Dashboard = () => (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h2 className="text-2xl font-bold">Tableau de bord</h2>
-          <p className="text-muted-foreground">Dr. Ahmed Benali - Cardiologue</p>
-        </div>
-        <Badge variant="secondary" className="gap-2">
-          <Star className="h-4 w-4" />
-          Vérifié
-        </Badge>
-      </div>
+        // Apply verification filter
+        if (filterVerified === 'verified') {
+          mockData = mockData.filter(p => p.verification_status === 'verified');
+        }
 
-      <div className="grid md:grid-cols-3 gap-6 mb-8">
-        <Card className="glass-card">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                <BarChart3 className="h-6 w-6 text-primary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">127</p>
-                <p className="text-sm text-muted-foreground">Consultations</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        // Apply pagination
+        const from = (currentPage - 1) * ITEMS_PER_PAGE;
+        const paginatedData = mockData.slice(from, from + ITEMS_PER_PAGE);
 
-        <Card className="glass-card">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-secondary/10 rounded-lg flex items-center justify-center">
-                <Star className="h-6 w-6 text-secondary" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">4.9</p>
-                <p className="text-sm text-muted-foreground">Note moyenne</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        setProviders(paginatedData as Provider[]);
+        setTotalCount(mockData.length);
+        setLoading(false);
+        return;
+      }
 
-        <Card className="glass-card">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-accent/10 rounded-lg flex items-center justify-center">
-                <MessageSquare className="h-6 w-6 text-accent" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">23</p>
-                <p className="text-sm text-muted-foreground">Messages</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      // Build query for Supabase
+      let query = supabase
+        .from('providers')
+        .select('*', { count: 'exact' });
 
-      <div className="grid md:grid-cols-2 gap-6">
-        <Card className="glass-card">
-          <CardHeader>
-            <CardTitle>Profil public</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Input placeholder="Nom complet" defaultValue="Dr. Ahmed Benali" />
-            <Input placeholder="Spécialité" defaultValue="Cardiologue" />
-            <Textarea placeholder="Présentation" defaultValue="Spécialiste en cardiologie avec 15 ans d'expérience..." />
-            <Button variant="outline" className="w-full">
-              Mettre à jour le profil
-            </Button>
-          </CardContent>
-        </Card>
+      // Apply search filter
+      if (searchQuery.trim()) {
+        query = query.or(`business_name.ilike.%${searchQuery}%,address.ilike.%${searchQuery}%,city.ilike.%${searchQuery}%`);
+      }
 
-        <Card className="glass-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Disponibilités
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
-                <span className="text-sm">Lundi - Vendredi</span>
-                <span className="text-sm text-muted-foreground">8h - 17h</span>
-              </div>
-              <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
-                <span className="text-sm">Samedi</span>
-                <span className="text-sm text-muted-foreground">8h - 12h</span>
-              </div>
-              <div className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
-                <span className="text-sm">Dimanche</span>
-                <span className="text-sm text-red-600">Fermé</span>
-              </div>
-            </div>
-            <Button variant="outline" className="w-full">
-              Modifier les horaires
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
+      // Apply type filter
+      if (filterType !== 'all') {
+        query = query.eq('provider_type', filterType as any);
+      }
+
+      // Apply verification filter
+      if (filterVerified === 'verified') {
+        query = query.eq('verification_status', 'verified');
+      }
+
+      // Apply pagination
+      const from = (currentPage - 1) * ITEMS_PER_PAGE;
+      const to = from + ITEMS_PER_PAGE - 1;
+      query = query.range(from, to);
+
+      // Order by created_at descending
+      query = query.order('created_at', { ascending: false });
+
+      const { data, error, count } = await query;
+
+      if (error) throw error;
+
+      setProviders(data || []);
+      setTotalCount(count || 0);
+    } catch (error) {
+      console.error('Error fetching providers:', error);
+      // Fallback vers les données mock
+      const mockData = getProviders().map(p => ({
+        id: p.id,
+        user_id: null,
+        business_name: p.name,
+        provider_type: p.type as any,
+        specialty_id: null,
+        phone: p.phone,
+        email: null,
+        address: p.address,
+        city: p.city,
+        latitude: p.lat,
+        longitude: p.lng,
+        description: p.description,
+        avatar_url: p.image,
+        cover_image_url: null,
+        website: null,
+        verification_status: p.verified ? 'verified' : 'pending',
+        is_emergency: p.emergency,
+        is_preloaded: p.is_preloaded,
+        is_claimed: p.is_claimed,
+        accessibility_features: p.accessibility_features,
+        home_visit_available: p.home_visit_available,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }));
+      setProviders(mockData.slice(0, ITEMS_PER_PAGE) as Provider[]);
+      setTotalCount(mockData.length);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const totalPages = Math.ceil(totalCount / ITEMS_PER_PAGE);
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCurrentPage(1); // Reset to first page on new search
+  };
+
+  const getProviderTypeLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      doctor: 'Médecin',
+      clinic: 'Clinique',
+      hospital: 'Hôpital',
+      pharmacy: 'Pharmacie',
+      laboratory: 'Laboratoire',
+    };
+    return labels[type] || type;
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-secondary/10 pt-20">
       <div className="container mx-auto px-4 py-8">
         <AnimatedTransition show={true} animation="fade">
-          {/* Tab Navigation */}
-          <div className="flex justify-center mb-8">
-            <div className="glass-panel rounded-lg p-1 flex">
-              <Button
-                variant={activeTab === 'register' ? 'default' : 'ghost'}
-                onClick={() => setActiveTab('register')}
-                className="px-6"
-              >
-                S'inscrire
-              </Button>
-              <Button
-                variant={activeTab === 'dashboard' ? 'default' : 'ghost'}
-                onClick={() => setActiveTab('dashboard')}
-                className="px-6"
-              >
-                Tableau de bord
-              </Button>
-            </div>
+          {/* Header */}
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold mb-2">Annuaire des Prestataires</h1>
+            <p className="text-muted-foreground">
+              Découvrez tous les professionnels de santé à Sidi Bel Abbès
+            </p>
           </div>
 
-          {/* Content */}
-          {activeTab === 'register' ? <RegistrationForm /> : <Dashboard />}
+          {/* Search and Filters */}
+          <Card className="glass-card mb-8">
+            <CardContent className="p-6">
+              <form onSubmit={handleSearch} className="space-y-4">
+                <div className="flex gap-4 flex-col md:flex-row">
+                  <div className="flex-1 relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                    <Input
+                      placeholder="Rechercher par nom, adresse ou ville..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  <Button type="submit" className="md:w-auto">
+                    <Search className="h-4 w-4 mr-2" />
+                    Rechercher
+                  </Button>
+                </div>
+
+                <div className="flex gap-4 flex-col md:flex-row">
+                  <Select value={filterType} onValueChange={setFilterType}>
+                    <SelectTrigger className="md:w-[200px]">
+                      <SelectValue placeholder="Type de prestataire" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous les types</SelectItem>
+                      <SelectItem value="doctor">Médecin</SelectItem>
+                      <SelectItem value="clinic">Clinique</SelectItem>
+                      <SelectItem value="hospital">Hôpital</SelectItem>
+                      <SelectItem value="pharmacy">Pharmacie</SelectItem>
+                      <SelectItem value="laboratory">Laboratoire</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Select value={filterVerified} onValueChange={setFilterVerified}>
+                    <SelectTrigger className="md:w-[200px]">
+                      <SelectValue placeholder="Statut de vérification" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous</SelectItem>
+                      <SelectItem value="verified">Vérifiés uniquement</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Results Count */}
+          <div className="mb-4 text-sm text-muted-foreground">
+            {loading ? (
+              'Chargement...'
+            ) : (
+              `${totalCount} prestataire${totalCount !== 1 ? 's' : ''} trouvé${totalCount !== 1 ? 's' : ''}`
+            )}
+          </div>
+
+          {/* Providers Grid */}
+          {loading ? (
+            <div className="flex items-center justify-center min-h-[400px]">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : providers.length === 0 ? (
+            <Card className="glass-card">
+              <CardContent className="p-12 text-center">
+                <p className="text-lg text-muted-foreground mb-2">
+                  Aucun prestataire trouvé
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Essayez de modifier vos critères de recherche
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                {providers.map((provider) => (
+                  <Card
+                    key={provider.id}
+                    className="glass-card hover:shadow-lg transition-shadow cursor-pointer group"
+                    onClick={() => navigate(`/provider/${provider.id}`)}
+                  >
+                    <CardContent className="p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-lg mb-1 group-hover:text-primary transition-colors">
+                            {provider.business_name}
+                          </h3>
+                          <Badge variant="secondary" className="mb-2">
+                            {getProviderTypeLabel(provider.provider_type)}
+                          </Badge>
+                        </div>
+                        <div onClick={(e) => e.stopPropagation()}>
+                          <FavoriteButton providerId={provider.id} />
+                        </div>
+                      </div>
+
+                      {provider.verification_status === 'verified' && (
+                        <Badge variant="default" className="mb-3 gap-1">
+                          <Star className="h-3 w-3" />
+                          Vérifié
+                        </Badge>
+                      )}
+
+                      <div className="space-y-2 text-sm">
+                        {provider.address && (
+                          <div className="flex items-start gap-2 text-muted-foreground">
+                            <MapPin className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                            <span className="line-clamp-2">{provider.address}</span>
+                          </div>
+                        )}
+                        {provider.city && (
+                          <div className="text-muted-foreground">
+                            {provider.city}
+                          </div>
+                        )}
+                        {provider.phone && (
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <Phone className="h-4 w-4" />
+                            <span>{provider.phone}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {provider.description && (
+                        <p className="text-sm text-muted-foreground mt-3 line-clamp-2">
+                          {provider.description}
+                        </p>
+                      )}
+
+                      {provider.is_emergency && (
+                        <Badge variant="destructive" className="mt-3">
+                          Urgences 24/7
+                        </Badge>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                    Précédent
+                  </Button>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={currentPage === pageNum ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => setCurrentPage(pageNum)}
+                          className="w-10"
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                  >
+                    Suivant
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
         </AnimatedTransition>
       </div>
     </div>
