@@ -341,10 +341,9 @@ export async function searchProviders(
     }
     if (filters?.city) {
       results = results.filter(p => 
-        p.city.toLowerCase().includes(filters.city!.toLowerCase())
+        (p.city || '').toLowerCase().includes(filters.city!.toLowerCase())
       );
-    }
-    
+    }    
     return results.map(mockToProvider);
   }
 

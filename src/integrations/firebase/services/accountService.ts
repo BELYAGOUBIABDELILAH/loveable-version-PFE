@@ -167,13 +167,20 @@ async function deleteUserNotifications(userId: string): Promise<void> {
   
   if (snapshot.empty) return;
   
-  const batch = writeBatch(db);
-  snapshot.docs.forEach(doc => {
-    batch.delete(doc.ref);
-  });
-  await batch.commit();
+  // Process in chunks of 500 (Firestore batch limit)
+  const chunks = [];
+  for (let i = 0; i < snapshot.docs.length; i += 500) {
+    chunks.push(snapshot.docs.slice(i, i + 500));
+  }
+  
+  for (const chunk of chunks) {
+    const batch = writeBatch(db);
+    chunk.forEach(doc => {
+      batch.delete(doc.ref);
+    });
+    await batch.commit();
+  }
 }
-
 /**
  * Delete user account and all associated data
  * 
