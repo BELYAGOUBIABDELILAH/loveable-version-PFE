@@ -15,9 +15,8 @@ export const HeroSection = () => {
   const { t } = useLanguage();
   const sectionRef = useScrollReveal();
 
-  const handleSearch = (query: SearchQuery) => {
-    console.log('Search query:', query);
-    // In real app, this would navigate to search results
+  const handleSearch = (_query: SearchQuery) => {
+    // TODO: Navigate to search results
   };
 
   return (

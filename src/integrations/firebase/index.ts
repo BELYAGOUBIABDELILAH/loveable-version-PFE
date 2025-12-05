@@ -2,16 +2,8 @@
  * Firebase Integration - Main Export
  * 
  * This module provides a unified API for accessing Firebase services.
- * It replaces the Supabase client throughout the application.
  * 
- * Migration Guide:
- * ================
- * 
- * BEFORE (Supabase):
- * import { supabase } from '@/integrations/supabase/client';
- * const { data } = await supabase.from('providers').select('*');
- * 
- * AFTER (Firebase):
+ * Usage:
  * import { getAllProviders } from '@/integrations/firebase';
  * const providers = await getAllProviders();
  * 
@@ -73,6 +65,7 @@ export const api = {
     getRole: authService.getUserRole,
     updateProfile: authService.updateUserProfile,
     resetPassword: authService.resetPassword,
+    sendVerificationEmail: authService.sendVerificationEmailToUser,
   },
   storage: {
     upload: storageService.uploadFile,

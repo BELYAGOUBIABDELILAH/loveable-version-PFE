@@ -35,8 +35,7 @@ export function WaitlistModal({ isOpen, onClose }: WaitlistModalProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    // Here you would typically send this data to your backend
-    console.log("Submitted data:", formData)
+    // TODO: Send data to backend
     toast.success("Thanks for joining our waitlist! We'll be in touch soon.", {
       duration: 5000,
     })

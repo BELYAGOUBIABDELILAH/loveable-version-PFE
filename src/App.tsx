@@ -182,9 +182,7 @@ const AppRoutes = () => {
         path="/provider/register" 
         element={
           <PageTransition>
-            <ProtectedRoute requireRole="provider">
-              <ProviderRegister />
-            </ProtectedRoute>
+            <ProviderRegister />
           </PageTransition>
         } 
       />

@@ -6,22 +6,58 @@
 
 import { describe, test, expect, beforeEach, vi } from 'vitest'
 import * as fc from 'fast-check'
-import { FavoritesService } from '@/services/favoritesService'
 
-// Mock the supabase client import
-vi.mock('@/integrations/supabase/client', () => ({
-  supabase: {
-    auth: {
-      getUser: vi.fn(),
-    },
-    from: vi.fn(),
-    channel: vi.fn(),
+// Mock Firebase Firestore
+const mockAddDoc = vi.fn()
+const mockDeleteDoc = vi.fn()
+const mockGetDocs = vi.fn()
+const mockQuery = vi.fn()
+const mockWhere = vi.fn()
+const mockOrderBy = vi.fn()
+const mockCollection = vi.fn()
+const mockDoc = vi.fn()
+
+vi.mock('firebase/firestore', () => ({
+  collection: (...args: any[]) => mockCollection(...args),
+  doc: (...args: any[]) => mockDoc(...args),
+  addDoc: (...args: any[]) => mockAddDoc(...args),
+  deleteDoc: (...args: any[]) => mockDeleteDoc(...args),
+  getDocs: (...args: any[]) => mockGetDocs(...args),
+  query: (...args: any[]) => mockQuery(...args),
+  where: (...args: any[]) => mockWhere(...args),
+  orderBy: (...args: any[]) => mockOrderBy(...args),
+  onSnapshot: vi.fn(),
+  Timestamp: {
+    now: () => ({ toDate: () => new Date() }),
   },
 }))
 
-// Import the mocked supabase client
-import { supabase } from '@/integrations/supabase/client'
-const mockSupabaseClient = supabase as any
+// Mock Firebase client
+const mockCurrentUser = { uid: '' }
+vi.mock('@/integrations/firebase/client', () => ({
+  db: {},
+  auth: {
+    get currentUser() {
+      return mockCurrentUser.uid ? { uid: mockCurrentUser.uid } : null
+    }
+  },
+}))
+
+// Mock provider service
+vi.mock('@/integrations/firebase/services/providerService', () => ({
+  getProviderById: vi.fn().mockResolvedValue({
+    id: 'provider-1',
+    business_name: 'Test Provider',
+    provider_type: 'doctor'
+  })
+}))
+
+// Mock app config
+vi.mock('@/config/app', () => ({
+  OFFLINE_MODE: false
+}))
+
+import { FavoritesService } from '@/services/favoritesService'
 
 // Generator for authenticated user
 const authenticatedUserGen = fc.record({
@@ -37,7 +73,7 @@ const providerIdGen = fc.uuid()
 const providerGen = fc.record({
   id: fc.uuid(),
   user_id: fc.uuid(),
-  business_name: fc.string({ minLength: 1, maxLength: 100 }),
+  business_name: fc.string({ minLength: 1, maxLength: 100 }).filter(s => s.trim().length > 0),
   provider_type: fc.constantFrom('doctor', 'clinic', 'hospital', 'pharmacy', 'laboratory'),
   phone: fc.string({ minLength: 10, maxLength: 15 }),
   address: fc.string({ minLength: 5, maxLength: 200 }),
@@ -45,28 +81,12 @@ const providerGen = fc.record({
   created_at: fc.constantFrom('2023-01-01T00:00:00.000Z', '2023-06-15T12:30:00.000Z', '2024-01-01T00:00:00.000Z'),
 })
 
-// Generator for favorite records
-const favoriteGen = fc.record({
-  id: fc.uuid(),
-  user_id: fc.uuid(),
-  provider_id: fc.uuid(),
-  created_at: fc.constantFrom('2023-01-01T00:00:00.000Z', '2023-06-15T12:30:00.000Z', '2024-01-01T00:00:00.000Z'),
-})
-
-// Generator for favorite with provider data
-const favoriteWithProviderGen = fc.record({
-  id: fc.uuid(),
-  user_id: fc.uuid(),
-  provider_id: fc.uuid(),
-  created_at: fc.constantFrom('2023-01-01T00:00:00.000Z', '2023-06-15T12:30:00.000Z', '2024-01-01T00:00:00.000Z'),
-  provider: providerGen,
-})
-
 describe('Favorites System Property Tests', () => {
   let favoritesService: FavoritesService
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockCurrentUser.uid = ''
     favoritesService = new FavoritesService()
   })
 
@@ -81,29 +101,18 @@ describe('Favorites System Property Tests', () => {
         authenticatedUserGen,
         providerIdGen,
         async (user, providerId) => {
-          // Mock authenticated user
-          mockSupabaseClient.auth.getUser.mockResolvedValue({
-            data: { user: { id: user.id } },
-            error: null,
-          })
+          // Set authenticated user
+          mockCurrentUser.uid = user.id
 
-          // Mock successful insert
-          const mockFrom = {
-            insert: vi.fn().mockReturnValue({
-              error: null,
-            }),
-          }
-          mockSupabaseClient.from.mockReturnValue(mockFrom)
+          // Mock empty favorites (not already favorited)
+          mockGetDocs.mockResolvedValue({ empty: true, docs: [] })
+          mockAddDoc.mockResolvedValue({ id: 'new-favorite-id' })
 
           // Test adding favorite
           await expect(favoritesService.addFavorite(providerId)).resolves.not.toThrow()
 
-          // Verify the insert was called with correct data
-          expect(mockSupabaseClient.from).toHaveBeenCalledWith('favorites')
-          expect(mockFrom.insert).toHaveBeenCalledWith({
-            user_id: user.id,
-            provider_id: providerId,
-          })
+          // Verify addDoc was called
+          expect(mockAddDoc).toHaveBeenCalled()
 
           return true
         }
@@ -117,11 +126,8 @@ describe('Favorites System Property Tests', () => {
       fc.asyncProperty(
         providerIdGen,
         async (providerId) => {
-          // Mock unauthenticated user
-          mockSupabaseClient.auth.getUser.mockResolvedValue({
-            data: { user: null },
-            error: null,
-          })
+          // Set unauthenticated user
+          mockCurrentUser.uid = ''
 
           // Test adding favorite without authentication should throw
           await expect(favoritesService.addFavorite(providerId)).rejects.toThrow(
@@ -141,19 +147,14 @@ describe('Favorites System Property Tests', () => {
         authenticatedUserGen,
         providerIdGen,
         async (user, providerId) => {
-          // Mock authenticated user
-          mockSupabaseClient.auth.getUser.mockResolvedValue({
-            data: { user: { id: user.id } },
-            error: null,
-          })
+          // Set authenticated user
+          mockCurrentUser.uid = user.id
 
-          // Mock unique constraint violation (already favorited)
-          const mockFrom = {
-            insert: vi.fn().mockReturnValue({
-              error: { code: '23505', message: 'duplicate key value violates unique constraint' },
-            }),
-          }
-          mockSupabaseClient.from.mockReturnValue(mockFrom)
+          // Mock existing favorite (already favorited)
+          mockGetDocs.mockResolvedValue({ 
+            empty: false, 
+            docs: [{ id: 'existing-fav', data: () => ({ providerId }) }] 
+          })
 
           // Test adding duplicate favorite should throw appropriate error
           await expect(favoritesService.addFavorite(providerId)).rejects.toThrow(
@@ -178,30 +179,21 @@ describe('Favorites System Property Tests', () => {
         authenticatedUserGen,
         providerIdGen,
         async (user, providerId) => {
-          // Mock authenticated user
-          mockSupabaseClient.auth.getUser.mockResolvedValue({
-            data: { user: { id: user.id } },
-            error: null,
-          })
+          // Set authenticated user
+          mockCurrentUser.uid = user.id
 
-          // Mock successful delete
-          const mockFrom = {
-            delete: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  error: null,
-                }),
-              }),
-            }),
-          }
-          mockSupabaseClient.from.mockReturnValue(mockFrom)
+          // Mock existing favorite to delete
+          const mockDocRef = { ref: { id: 'fav-to-delete' } }
+          mockGetDocs.mockResolvedValue({ 
+            docs: [mockDocRef]
+          })
+          mockDeleteDoc.mockResolvedValue(undefined)
 
           // Test removing favorite
           await expect(favoritesService.removeFavorite(providerId)).resolves.not.toThrow()
 
-          // Verify the delete was called with correct filters
-          expect(mockSupabaseClient.from).toHaveBeenCalledWith('favorites')
-          expect(mockFrom.delete).toHaveBeenCalled()
+          // Verify deleteDoc was called
+          expect(mockDeleteDoc).toHaveBeenCalled()
 
           return true
         }
@@ -215,11 +207,8 @@ describe('Favorites System Property Tests', () => {
       fc.asyncProperty(
         providerIdGen,
         async (providerId) => {
-          // Mock unauthenticated user
-          mockSupabaseClient.auth.getUser.mockResolvedValue({
-            data: { user: null },
-            error: null,
-          })
+          // Set unauthenticated user
+          mockCurrentUser.uid = ''
 
           // Test removing favorite without authentication should throw
           await expect(favoritesService.removeFavorite(providerId)).rejects.toThrow(
@@ -242,49 +231,36 @@ describe('Favorites System Property Tests', () => {
     await fc.assert(
       fc.asyncProperty(
         authenticatedUserGen,
-        fc.array(favoriteWithProviderGen, { minLength: 0, maxLength: 10 }),
-        async (user, userFavorites) => {
-          // Mock authenticated user
-          mockSupabaseClient.auth.getUser.mockResolvedValue({
-            data: { user: { id: user.id } },
-            error: null,
-          })
+        fc.array(providerGen, { minLength: 0, maxLength: 5 }),
+        async (user, providers) => {
+          // Set authenticated user
+          mockCurrentUser.uid = user.id
 
-          // Mock successful select with join
-          const mockFrom = {
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                order: vi.fn().mockReturnValue({
-                  data: userFavorites,
-                  error: null,
-                }),
-              }),
-            }),
-          }
-          mockSupabaseClient.from.mockReturnValue(mockFrom)
+          // Mock favorites with provider data
+          const mockDocs = providers.map((provider, index) => ({
+            id: `fav-${index}`,
+            data: () => ({
+              userId: user.id,
+              providerId: provider.id,
+              createdAt: { toDate: () => new Date() }
+            })
+          }))
+          
+          mockGetDocs.mockResolvedValue({ docs: mockDocs })
 
           // Test getting favorites
           const result = await favoritesService.getFavorites()
 
           // Verify all favorites are returned
-          expect(result).toHaveLength(userFavorites.length)
+          expect(result).toHaveLength(providers.length)
           
           // Verify each favorite has provider data
-          result.forEach((favorite, index) => {
+          result.forEach((favorite) => {
             expect(favorite).toHaveProperty('id')
-            expect(favorite).toHaveProperty('user_id')
-            expect(favorite).toHaveProperty('provider_id')
+            expect(favorite).toHaveProperty('userId')
+            expect(favorite).toHaveProperty('providerId')
             expect(favorite).toHaveProperty('provider')
-            expect(favorite.provider).toHaveProperty('business_name')
-            expect(favorite.provider).toHaveProperty('provider_type')
           })
-
-          // Verify the query was constructed correctly
-          expect(mockSupabaseClient.from).toHaveBeenCalledWith('favorites')
-          expect(mockFrom.select).toHaveBeenCalledWith(`
-        *,
-        provider:providers(*)
-      `)
 
           return true
         }
@@ -298,11 +274,8 @@ describe('Favorites System Property Tests', () => {
       fc.asyncProperty(
         fc.constant(null),
         async () => {
-          // Mock unauthenticated user
-          mockSupabaseClient.auth.getUser.mockResolvedValue({
-            data: { user: null },
-            error: null,
-          })
+          // Set unauthenticated user
+          mockCurrentUser.uid = ''
 
           // Test getting favorites without authentication should throw
           await expect(favoritesService.getFavorites()).rejects.toThrow(
@@ -328,37 +301,20 @@ describe('Favorites System Property Tests', () => {
         providerIdGen,
         fc.boolean(),
         async (user, providerId, isFavorited) => {
-          // Mock authenticated user
-          mockSupabaseClient.auth.getUser.mockResolvedValue({
-            data: { user: { id: user.id } },
-            error: null,
-          })
+          // Set authenticated user
+          mockCurrentUser.uid = user.id
 
           // Mock the response based on whether it should be favorited
-          const mockFrom = {
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  single: vi.fn().mockReturnValue(
-                    isFavorited
-                      ? { data: { id: fc.sample(fc.uuid(), 1)[0] }, error: null }
-                      : { data: null, error: { code: 'PGRST116' } }
-                  ),
-                }),
-              }),
-            }),
-          }
-          mockSupabaseClient.from.mockReturnValue(mockFrom)
+          mockGetDocs.mockResolvedValue({ 
+            empty: !isFavorited,
+            docs: isFavorited ? [{ id: 'fav-1' }] : []
+          })
 
           // Test checking favorite status
           const result = await favoritesService.isFavorite(providerId)
 
           // Verify the result matches expected status
           expect(result).toBe(isFavorited)
-
-          // Verify the query was constructed correctly
-          expect(mockSupabaseClient.from).toHaveBeenCalledWith('favorites')
-          expect(mockFrom.select).toHaveBeenCalledWith('id')
 
           return true
         }
@@ -372,11 +328,8 @@ describe('Favorites System Property Tests', () => {
       fc.asyncProperty(
         providerIdGen,
         async (providerId) => {
-          // Mock unauthenticated user
-          mockSupabaseClient.auth.getUser.mockResolvedValue({
-            data: { user: null },
-            error: null,
-          })
+          // Set unauthenticated user
+          mockCurrentUser.uid = ''
 
           // Test checking favorite status without authentication should return false
           const result = await favoritesService.isFavorite(providerId)
@@ -401,47 +354,29 @@ describe('Favorites System Property Tests', () => {
         providerIdGen,
         fc.boolean(),
         async (user, providerId, initiallyFavorited) => {
-          // Mock authenticated user
-          mockSupabaseClient.auth.getUser.mockResolvedValue({
-            data: { user: { id: user.id } },
-            error: null,
+          // Set authenticated user
+          mockCurrentUser.uid = user.id
+
+          // Track call count to return different values
+          let callCount = 0
+          mockGetDocs.mockImplementation(() => {
+            callCount++
+            if (callCount === 1) {
+              // First call: isFavorite check
+              return Promise.resolve({ 
+                empty: !initiallyFavorited,
+                docs: initiallyFavorited ? [{ id: 'fav-1', ref: { id: 'fav-1' } }] : []
+              })
+            }
+            // Subsequent calls for add/remove operations
+            return Promise.resolve({ 
+              empty: true,
+              docs: initiallyFavorited ? [{ id: 'fav-1', ref: { id: 'fav-1' } }] : []
+            })
           })
 
-          // Mock isFavorite check
-          const mockFromCheck = {
-            select: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  single: vi.fn().mockReturnValue(
-                    initiallyFavorited
-                      ? { data: { id: fc.sample(fc.uuid(), 1)[0] }, error: null }
-                      : { data: null, error: { code: 'PGRST116' } }
-                  ),
-                }),
-              }),
-            }),
-          }
-
-          // Mock add/remove operations
-          const mockFromAction = initiallyFavorited
-            ? {
-                delete: vi.fn().mockReturnValue({
-                  eq: vi.fn().mockReturnValue({
-                    eq: vi.fn().mockReturnValue({
-                      error: null,
-                    }),
-                  }),
-                }),
-              }
-            : {
-                insert: vi.fn().mockReturnValue({
-                  error: null,
-                }),
-              }
-
-          mockSupabaseClient.from
-            .mockReturnValueOnce(mockFromCheck) // First call for isFavorite check
-            .mockReturnValueOnce(mockFromAction) // Second call for add/remove action
+          mockAddDoc.mockResolvedValue({ id: 'new-fav' })
+          mockDeleteDoc.mockResolvedValue(undefined)
 
           // Test toggling favorite
           const result = await favoritesService.toggleFavorite(providerId)

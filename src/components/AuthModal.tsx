@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useAuth } from '@/contexts/AuthContext';
 import { Loader2, Mail, Lock, User, Chrome } from 'lucide-react';
+import { PasswordResetForm } from '@/components/auth/PasswordResetForm';
 
 interface AuthModalProps {
   open: boolean;
@@ -14,15 +15,18 @@ interface AuthModalProps {
   defaultTab?: 'login' | 'signup';
 }
 
+type AuthView = 'login' | 'signup' | 'reset';
+
 export const AuthModal = ({ open, onOpenChange, defaultTab = 'login' }: AuthModalProps) => {
   const { login, signup, loginWithGoogle, isLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState(defaultTab);
+  const [activeTab, setActiveTab] = useState<'login' | 'signup'>(defaultTab);
+  const [view, setView] = useState<AuthView>(defaultTab);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupName, setSignupName] = useState('');
-  const [signupRole, setSignupRole] = useState<'patient' | 'provider'>('patient');
+  const [signupRole, setSignupRole] = useState<'citizen' | 'provider'>('citizen');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,20 +66,37 @@ export const AuthModal = ({ open, onOpenChange, defaultTab = 'login' }: AuthModa
     setSignupEmail('');
     setSignupPassword('');
     setSignupName('');
-    setSignupRole('patient');
+    setSignupRole('citizen');
+  };
+
+  const handleBackToLogin = () => {
+    setView('login');
+    setActiveTab('login');
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Bienvenue sur CityHealth</DialogTitle>
-          <DialogDescription>
-            Connectez-vous ou créez un compte pour accéder à toutes les fonctionnalités
-          </DialogDescription>
-        </DialogHeader>
+        {view === 'reset' ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Réinitialiser le mot de passe</DialogTitle>
+              <DialogDescription>
+                Nous vous enverrons un lien pour réinitialiser votre mot de passe
+              </DialogDescription>
+            </DialogHeader>
+            <PasswordResetForm onBack={handleBackToLogin} />
+          </>
+        ) : (
+          <>
+            <DialogHeader>
+              <DialogTitle>Bienvenue sur CityHealth</DialogTitle>
+              <DialogDescription>
+                Connectez-vous ou créez un compte pour accéder à toutes les fonctionnalités
+              </DialogDescription>
+            </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'login' | 'signup')}>
+            <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v as 'login' | 'signup'); setView(v as AuthView); }}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="login">Connexion</TabsTrigger>
             <TabsTrigger value="signup">Inscription</TabsTrigger>
@@ -125,6 +146,16 @@ export const AuthModal = ({ open, onOpenChange, defaultTab = 'login' }: AuthModa
                   'Se connecter'
                 )}
               </Button>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  className="text-sm text-primary hover:underline"
+                  onClick={() => setView('reset')}
+                >
+                  Mot de passe oublié ?
+                </button>
+              </div>
             </form>
 
             <div className="relative">
@@ -201,11 +232,11 @@ export const AuthModal = ({ open, onOpenChange, defaultTab = 'login' }: AuthModa
 
               <div className="space-y-2">
                 <Label>Type de compte</Label>
-                <RadioGroup value={signupRole} onValueChange={(v) => setSignupRole(v as 'patient' | 'provider')}>
+                <RadioGroup value={signupRole} onValueChange={(v) => setSignupRole(v as 'citizen' | 'provider')}>
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="patient" id="patient" />
-                    <Label htmlFor="patient" className="font-normal cursor-pointer">
-                      Patient
+                    <RadioGroupItem value="citizen" id="citizen" />
+                    <Label htmlFor="citizen" className="font-normal cursor-pointer">
+                      Citoyen
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -250,6 +281,8 @@ export const AuthModal = ({ open, onOpenChange, defaultTab = 'login' }: AuthModa
             </Button>
           </TabsContent>
         </Tabs>
+          </>
+        )}
       </DialogContent>
     </Dialog>
   );

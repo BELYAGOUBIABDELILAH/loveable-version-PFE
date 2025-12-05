@@ -1,267 +1,254 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+/**
+ * Navbar Component - Google Antigravity Design System
+ * Requirements: 20.9, 20.10
+ * - Fixed/sticky header with transparent→white scroll transition
+ * - Navigation items: Product, Use Cases↓, Pricing, Blog, Resources↓
+ * - Black pill "Get Started" CTA button
+ * - Logo only (no "CityHealth" text)
+ */
+
+import { useState, useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { 
   Stethoscope, 
   LogIn, 
-  Search, 
-  Upload, 
-  User, 
-  Settings, 
-  LogOut, 
-  Moon, 
-  Sun, 
-  Heart, 
-  MapPin, 
-  Phone, 
-  Users, 
-  Activity 
+  LogOut,
+  ChevronDown
 } from 'lucide-react';
-import { useRippleEffect } from '@/lib/animations';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
-import { useTheme } from '@/contexts/ThemeContext';
 import { AuthModal } from '@/components/AuthModal';
 import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   NavigationMenu,
   NavigationMenuContent,
   NavigationMenuItem,
+  NavigationMenuLink,
   NavigationMenuList,
   NavigationMenuTrigger,
-  navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu";
-import { TooltipProvider } from '@/components/ui/tooltip';
 
-interface NavItemProps {
-  to: string;
-  icon: React.ReactNode;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-  hasSubmenu?: boolean;
-  children?: React.ReactNode;
-}
+// Use Cases dropdown items
+const useCasesItems = [
+  { to: '/search', label: 'Find Providers', description: 'Search for healthcare providers' },
+  { to: '/map', label: 'Map View', description: 'View providers on a map' },
+  { to: '/emergency', label: 'Emergency Services', description: '24/7 emergency care' },
+];
 
-const NavItem = ({ to, icon, label, active, onClick, hasSubmenu, children }: NavItemProps) => {
-  const handleRipple = useRippleEffect();
-  
-  if (hasSubmenu) {
-    return (
-      <NavigationMenu>
-        <NavigationMenuList>
-          <NavigationMenuItem>
-            <NavigationMenuTrigger 
-              className={cn(
-                "relative flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-300",
-                "hover:bg-primary/10 hover:text-primary", 
-                active ? "bg-primary/10 text-primary" : "text-foreground/80"
-              )}
-            >
-              <span className={cn(
-                "transition-all duration-300",
-                active ? "text-primary" : "text-foreground/60"
-              )}>
-                {icon}
-              </span>
-              <span className="font-medium">{label}</span>
-            </NavigationMenuTrigger>
-            <NavigationMenuContent>
-              <div className="grid w-[200px] gap-1 p-2">
-                {children}
-              </div>
-            </NavigationMenuContent>
-          </NavigationMenuItem>
-        </NavigationMenuList>
-      </NavigationMenu>
-    );
-  }
-  
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Link 
-          to={to} 
-          className={cn(
-            "relative flex items-center justify-center px-4 py-3 rounded-lg transition-all duration-300",
-            "hover:bg-primary/10 hover:text-primary",
-            "overflow-hidden",
-            active ? "bg-primary/10 text-primary" : "text-foreground/80"
-          )}
-          onClick={(e) => {
-            handleRipple(e);
-            onClick();
-          }}
-        >
-          <span className={cn(
-            "transition-all duration-300",
-            active ? "text-primary" : "text-foreground/60"
-          )}>
-            {icon}
-          </span>
-          {active && (
-            <span className="ml-2 font-medium">{label}</span>
-          )}
-        </Link>
-      </TooltipTrigger>
-      <TooltipContent>
-        <p>{label}</p>
-      </TooltipContent>
-    </Tooltip>
-  );
-};
-
-const SubMenuItem = ({ to, icon, label, active, onClick }: NavItemProps) => {
-  return (
-    <Link 
-      to={to} 
-      className={cn(
-        "flex items-center gap-2 p-2 rounded-md hover:bg-primary/10 hover:text-primary transition-all duration-300",
-        active ? "bg-primary/10 text-primary" : ""
-      )}
-      onClick={onClick}
-    >
-      <span className={cn(
-        "transition-all duration-300",
-        active ? "text-primary" : "text-foreground/60"
-      )}>
-        {icon}
-      </span>
-      <span>{label}</span>
-    </Link>
-  );
-};
+// Resources dropdown items
+const resourcesItems = [
+  { to: '/how', label: 'How It Works', description: 'Learn about our platform' },
+  { to: '/why', label: 'Why CityHealth', description: 'Our mission and values' },
+  { to: '/contact', label: 'Contact Us', description: 'Get in touch with us' },
+];
 
 export const Navbar = () => {
-  const [active, setActive] = useState('home');
+  const [isScrolled, setIsScrolled] = useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const { isAuthenticated, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
-  
+  const location = useLocation();
+
+  // Handle scroll effect for transparent→white transition
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 10);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   const handleOpenAuthModal = () => {
     setIsAuthModalOpen(true);
   };
 
-  const handleCloseAuthModal = () => {
-    setIsAuthModalOpen(false);
-  };
-
-  const handleNavItemClick = (id: string) => {
-    setActive(id);
-  };
-
-  const healthcareSubmenu = [
-    { to: '/', icon: <Stethoscope size={18} />, label: 'Home', id: 'home' },
-    { to: '/search', icon: <Search size={18} />, label: 'Find Providers', id: 'find' },
-    { to: '/map', icon: <MapPin size={18} />, label: 'Map', id: 'map' },
-    { to: '/emergency', icon: <Phone size={18} />, label: 'Emergency', id: 'emergency' },
-  ];
-  
-  const authNavItems = [
-    { to: '/favorites', icon: <Heart size={20} />, label: 'Favorites', id: 'favorites' },
-    { to: '/contact', icon: <Phone size={20} />, label: 'Contact', id: 'contact' },
-    { to: '/profile', icon: <User size={20} />, label: 'Profile', id: 'profile' },
-    { to: '/settings', icon: <Settings size={20} />, label: 'Settings', id: 'settings' },
-  ];
-
-  const publicNavItems = [
-    { to: '/search', icon: <Search size={20} />, label: 'Search', id: 'search' },
-    { to: '/map', icon: <MapPin size={20} />, label: 'Map', id: 'map' },
-    { to: '/contact', icon: <Phone size={20} />, label: 'Contact', id: 'contact' },
-  ];
-
-  const navItems = isAuthenticated ? authNavItems : publicNavItems;
-
   return (
     <>
-      <TooltipProvider>
-        <header className="glass-panel fixed top-6 left-1/2 transform -translate-x-1/2 z-40 rounded-lg px-1 py-1">
-          <nav className="flex items-center">
-            {/* CityHealth with submenu */}
-            <NavItem
-              to="#"
-              icon={<Stethoscope size={20} />}
-              label="CityHealth"
-              active={['home', 'find', 'map', 'emergency'].includes(active)}
-              onClick={() => {}}
-              hasSubmenu={true}
-            >
-              {healthcareSubmenu.map((item) => (
-                <SubMenuItem
-                  key={item.id}
-                  to={item.to}
-                  icon={item.icon}
-                  label={item.label}
-                  active={active === item.id}
-                  onClick={() => handleNavItemClick(item.id)}
-                />
-              ))}
-            </NavItem>
-            
-            {/* Other nav items */}
-            {navItems.map((item) => (
-              <NavItem
-                key={item.id}
-                to={item.to}
-                icon={item.icon}
-                label={item.label}
-                active={active === item.id}
-                onClick={() => handleNavItemClick(item.id)}
+      <header 
+        className={cn(
+          "fixed top-0 left-0 right-0 z-50 transition-all duration-300",
+          isScrolled 
+            ? "bg-white shadow-soft" 
+            : "bg-transparent"
+        )}
+        data-scrolled={isScrolled}
+      >
+        <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            {/* Logo only - no text per Requirements 20.10 */}
+            <Link to="/" className="flex items-center">
+              <Stethoscope 
+                size={32} 
+                className={cn(
+                  "transition-colors duration-300",
+                  isScrolled ? "text-antigravity-accent" : "text-antigravity-accent"
+                )} 
               />
-            ))}
-            
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="rounded-lg ml-1"
-                  onClick={toggleTheme}
-                >
-                  {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Toggle {theme === 'dark' ? 'light' : 'dark'} mode</p>
-              </TooltipContent>
-            </Tooltip>
-            
-            {isAuthenticated ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
+            </Link>
+
+            {/* Navigation Items */}
+            <div className="hidden md:flex items-center space-x-1">
+              <NavigationMenu>
+                <NavigationMenuList>
+                  {/* Product */}
+                  <NavigationMenuItem>
+                    <Link to="/">
+                      <NavigationMenuLink 
+                        className={cn(
+                          "px-4 py-2 text-sm font-medium transition-colors rounded-lg",
+                          "hover:bg-antigravity-button-secondary",
+                          isScrolled ? "text-antigravity-primary-text" : "text-antigravity-primary-text"
+                        )}
+                      >
+                        Product
+                      </NavigationMenuLink>
+                    </Link>
+                  </NavigationMenuItem>
+
+                  {/* Use Cases Dropdown */}
+                  <NavigationMenuItem>
+                    <NavigationMenuTrigger 
+                      className={cn(
+                        "px-4 py-2 text-sm font-medium transition-colors",
+                        "hover:bg-antigravity-button-secondary bg-transparent",
+                        isScrolled ? "text-antigravity-primary-text" : "text-antigravity-primary-text"
+                      )}
+                    >
+                      Use Cases
+                    </NavigationMenuTrigger>
+                    <NavigationMenuContent>
+                      <ul className="grid w-[300px] gap-2 p-4 bg-white rounded-card shadow-soft">
+                        {useCasesItems.map((item) => (
+                          <li key={item.to}>
+                            <Link
+                              to={item.to}
+                              className="block p-3 rounded-lg hover:bg-antigravity-button-secondary transition-colors"
+                            >
+                              <div className="text-sm font-medium text-antigravity-primary-text">
+                                {item.label}
+                              </div>
+                              <div className="text-xs text-antigravity-secondary-text mt-1">
+                                {item.description}
+                              </div>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </NavigationMenuContent>
+                  </NavigationMenuItem>
+
+                  {/* Pricing */}
+                  <NavigationMenuItem>
+                    <Link to="/providers">
+                      <NavigationMenuLink 
+                        className={cn(
+                          "px-4 py-2 text-sm font-medium transition-colors rounded-lg",
+                          "hover:bg-antigravity-button-secondary",
+                          isScrolled ? "text-antigravity-primary-text" : "text-antigravity-primary-text"
+                        )}
+                      >
+                        Pricing
+                      </NavigationMenuLink>
+                    </Link>
+                  </NavigationMenuItem>
+
+                  {/* Blog */}
+                  <NavigationMenuItem>
+                    <Link to="/why">
+                      <NavigationMenuLink 
+                        className={cn(
+                          "px-4 py-2 text-sm font-medium transition-colors rounded-lg",
+                          "hover:bg-antigravity-button-secondary",
+                          isScrolled ? "text-antigravity-primary-text" : "text-antigravity-primary-text"
+                        )}
+                      >
+                        Blog
+                      </NavigationMenuLink>
+                    </Link>
+                  </NavigationMenuItem>
+
+                  {/* Resources Dropdown */}
+                  <NavigationMenuItem>
+                    <NavigationMenuTrigger 
+                      className={cn(
+                        "px-4 py-2 text-sm font-medium transition-colors",
+                        "hover:bg-antigravity-button-secondary bg-transparent",
+                        isScrolled ? "text-antigravity-primary-text" : "text-antigravity-primary-text"
+                      )}
+                    >
+                      Resources
+                    </NavigationMenuTrigger>
+                    <NavigationMenuContent>
+                      <ul className="grid w-[300px] gap-2 p-4 bg-white rounded-card shadow-soft">
+                        {resourcesItems.map((item) => (
+                          <li key={item.to}>
+                            <Link
+                              to={item.to}
+                              className="block p-3 rounded-lg hover:bg-antigravity-button-secondary transition-colors"
+                            >
+                              <div className="text-sm font-medium text-antigravity-primary-text">
+                                {item.label}
+                              </div>
+                              <div className="text-xs text-antigravity-secondary-text mt-1">
+                                {item.description}
+                              </div>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </NavigationMenuContent>
+                  </NavigationMenuItem>
+                </NavigationMenuList>
+              </NavigationMenu>
+            </div>
+
+            {/* Right side - Auth buttons */}
+            <div className="flex items-center space-x-3">
+              {isAuthenticated ? (
+                <>
+                  <Link to="/profile">
+                    <Button 
+                      variant="ghost" 
+                      className="text-antigravity-secondary-text hover:text-antigravity-primary-text"
+                    >
+                      Profile
+                    </Button>
+                  </Link>
                   <Button
-                    variant="ghost"
-                    className="flex items-center gap-2 px-4 py-3 rounded-lg hover:bg-primary hover:text-primary-foreground"
                     onClick={logout}
-                  >
-                    <LogOut size={20} />
-                    {active === 'logout' && <span className="font-medium">Logout</span>}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Logout</p>
-                </TooltipContent>
-              </Tooltip>
-            ) : (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
                     variant="ghost"
-                    className="flex items-center gap-2 px-4 py-3 rounded-lg hover:bg-primary hover:text-primary-foreground"
-                    onClick={handleOpenAuthModal}
+                    className="text-antigravity-secondary-text hover:text-antigravity-primary-text"
                   >
-                    <LogIn size={20} />
-                    {active === 'login' && <span className="font-medium">Login</span>}
+                    <LogOut size={18} className="mr-2" />
+                    Logout
                   </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>Login</p>
-                </TooltipContent>
-              </Tooltip>
-            )}
-          </nav>
-        </header>
-      </TooltipProvider>
+                </>
+              ) : (
+                <>
+                  <Button
+                    onClick={handleOpenAuthModal}
+                    variant="ghost"
+                    className="text-antigravity-secondary-text hover:text-antigravity-primary-text"
+                  >
+                    <LogIn size={18} className="mr-2" />
+                    Sign In
+                  </Button>
+                  {/* Black pill "Get Started" CTA button per Requirements 20.10 */}
+                  <Button
+                    onClick={handleOpenAuthModal}
+                    className="bg-antigravity-button-primary text-white rounded-pill px-6 py-2 font-medium shadow-soft hover:opacity-90 transition-opacity"
+                  >
+                    Get Started
+                  </Button>
+                </>
+              )}
+            </div>
+          </div>
+        </nav>
+      </header>
+      
+      {/* Spacer to prevent content from going under fixed header */}
+      <div className="h-16" />
       
       <AuthModal open={isAuthModalOpen} onOpenChange={setIsAuthModalOpen} />
     </>

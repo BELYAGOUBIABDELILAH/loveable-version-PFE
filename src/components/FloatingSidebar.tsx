@@ -4,19 +4,15 @@ import {
   Home, 
   Search, 
   Users, 
-  Settings, 
   Phone, 
   MapPin, 
   Heart,
   Menu,
   X,
-  Globe,
-  Moon,
-  Sun
+  Globe
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/hooks/useLanguage';
-import { useTheme } from '@/contexts/ThemeContext';
 import { Button } from '@/components/ui/button';
 
 interface MenuItem {
@@ -28,7 +24,6 @@ interface MenuItem {
 const FloatingSidebar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const { t, language, setLanguage, isRTL } = useLanguage();
-  const { theme, toggleTheme } = useTheme();
   const location = useLocation();
 
   const menuItems: MenuItem[] = [
@@ -145,17 +140,6 @@ const FloatingSidebar = () => {
               ))}
             </div>
           </div>
-
-          {/* Theme Toggle */}
-          <Button
-            onClick={toggleTheme}
-            variant="outline"
-            size="sm"
-            className="w-full justify-start gap-2"
-          >
-            {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            {theme === 'dark' ? 'Mode clair' : 'Mode sombre'}
-          </Button>
 
           {/* Emergency Button */}
           <div className="mt-6 p-4 glass-card rounded-xl border border-red-200">

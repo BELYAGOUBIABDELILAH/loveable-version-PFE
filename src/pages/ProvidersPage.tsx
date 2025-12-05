@@ -7,14 +7,39 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLanguage } from '@/contexts/LanguageContext';
 import AnimatedTransition from '@/components/AnimatedTransition';
-import { supabase } from '@/integrations/supabase/client';
-import { Tables } from '@/integrations/supabase/types';
+import { getAllProviders, searchProviders } from '@/integrations/firebase/services/providerService';
+import { Provider as FirebaseProvider } from '@/integrations/firebase/types';
 import { useNavigate } from 'react-router-dom';
 import { FavoriteButton } from '@/components/FavoriteButton';
 import { OFFLINE_MODE } from '@/config/app';
 import { getProviders } from '@/data/providers';
 
-type Provider = Tables<"providers">;
+// Local interface matching component expectations (snake_case for template compatibility)
+interface Provider {
+  id: string;
+  user_id: string | null;
+  business_name: string;
+  provider_type: string;
+  specialty_id: string | null;
+  phone: string;
+  email: string | null;
+  address: string;
+  city: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  description: string | null;
+  avatar_url: string | null;
+  cover_image_url: string | null;
+  website: string | null;
+  verification_status: string;
+  is_emergency: boolean;
+  is_preloaded: boolean;
+  is_claimed: boolean;
+  accessibility_features: string[];
+  home_visit_available: boolean;
+  created_at: string;
+  updated_at: string;
+}
 
 const ITEMS_PER_PAGE = 12;
 
@@ -96,40 +121,57 @@ const ProvidersPage = () => {
         return;
       }
 
-      // Build query for Supabase
-      let query = supabase
-        .from('providers')
-        .select('*', { count: 'exact' });
+      // Fetch from Firebase
+      let allData = await getAllProviders();
 
       // Apply search filter
       if (searchQuery.trim()) {
-        query = query.or(`business_name.ilike.%${searchQuery}%,address.ilike.%${searchQuery}%,city.ilike.%${searchQuery}%`);
+        const query = searchQuery.toLowerCase();
+        allData = allData.filter(p =>
+          p.businessName.toLowerCase().includes(query) ||
+          p.address.toLowerCase().includes(query) ||
+          (p.city || '').toLowerCase().includes(query)
+        );
       }
 
       // Apply type filter
       if (filterType !== 'all') {
-        query = query.eq('provider_type', filterType as any);
+        allData = allData.filter(p => p.providerType === filterType);
       }
 
       // Apply verification filter
       if (filterVerified === 'verified') {
-        query = query.eq('verification_status', 'verified');
+        allData = allData.filter(p => p.verificationStatus === 'verified');
       }
+
+      // Sort by createdAt descending
+      allData.sort((a, b) => b.createdAt.toMillis() - a.createdAt.toMillis());
 
       // Apply pagination
       const from = (currentPage - 1) * ITEMS_PER_PAGE;
-      const to = from + ITEMS_PER_PAGE - 1;
-      query = query.range(from, to);
+      const paginatedData = allData.slice(from, from + ITEMS_PER_PAGE);
 
-      // Order by created_at descending
-      query = query.order('created_at', { ascending: false });
+      // Map Firebase format to component format
+      const mappedData = paginatedData.map(p => ({
+        ...p,
+        user_id: p.userId,
+        business_name: p.businessName,
+        provider_type: p.providerType,
+        specialty_id: p.specialtyId || null,
+        verification_status: p.verificationStatus,
+        is_emergency: p.isEmergency,
+        is_preloaded: p.isPreloaded,
+        is_claimed: p.isClaimed,
+        accessibility_features: p.accessibilityFeatures,
+        home_visit_available: p.homeVisitAvailable,
+        avatar_url: p.avatarUrl || null,
+        cover_image_url: p.coverImageUrl || null,
+        created_at: p.createdAt.toDate().toISOString(),
+        updated_at: p.updatedAt.toDate().toISOString(),
+      }));
 
-      const { data, error, count } = await query;
-
-      if (error) throw error;
-
-      setProviders(data || []);
-      setTotalCount(count || 0);
+      setProviders(mappedData as any);
+      setTotalCount(allData.length);
     } catch (error) {
       console.error('Error fetching providers:', error);
       // Fallback vers les données mock

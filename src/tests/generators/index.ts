@@ -4,14 +4,7 @@
  */
 
 import * as fc from 'fast-check'
-import type { Database } from '@/integrations/supabase/types'
-
-// Type aliases for convenience
-type ProviderType = Database['public']['Enums']['provider_type']
-type VerificationStatus = Database['public']['Enums']['verification_status']
-type AppRole = Database['public']['Enums']['app_role']
-type Provider = Database['public']['Tables']['providers']['Row']
-type MedicalAd = Database['public']['Tables']['medical_ads']['Row']
+import type { ProviderType, VerificationStatus, UserRole, Provider, MedicalAd } from '@/integrations/firebase/types'
 
 /**
  * Generator for valid UUID strings
@@ -70,8 +63,8 @@ export const verificationStatusArbitrary = (): fc.Arbitrary<VerificationStatus> 
 /**
  * Generator for app roles
  */
-export const appRoleArbitrary = (): fc.Arbitrary<AppRole> =>
-  fc.constantFrom<AppRole>('citizen', 'provider', 'admin')
+export const appRoleArbitrary = (): fc.Arbitrary<UserRole> =>
+  fc.constantFrom<UserRole>('citizen', 'provider', 'admin')
 
 /**
  * Generator for accessibility features
@@ -104,9 +97,33 @@ export const isoDateArbitrary = (): fc.Arbitrary<string> =>
     .map(timestamp => new Date(timestamp).toISOString())
 
 /**
- * Generator for valid Provider objects
+ * Generator for valid Provider objects (snake_case for test compatibility)
  */
-export const providerArbitrary = (): fc.Arbitrary<Provider> =>
+export const providerArbitrary = (): fc.Arbitrary<{
+  id: string
+  user_id: string
+  business_name: string
+  provider_type: ProviderType
+  specialty_id: string | null
+  phone: string
+  email: string | null
+  address: string
+  city: string | null
+  latitude: number | null
+  longitude: number | null
+  description: string | null
+  avatar_url: string | null
+  cover_image_url: string | null
+  website: string | null
+  verification_status: VerificationStatus | null
+  is_emergency: boolean | null
+  is_preloaded: boolean | null
+  is_claimed: boolean | null
+  accessibility_features: string[] | null
+  home_visit_available: boolean | null
+  created_at: string | null
+  updated_at: string | null
+}> =>
   fc.record({
     id: uuidArbitrary(),
     user_id: uuidArbitrary(),
@@ -171,7 +188,7 @@ export const userArbitrary = (): fc.Arbitrary<{
   id: string
   full_name: string
   email: string
-  role: AppRole
+  role: UserRole
   phone: string | null
   language: 'fr' | 'ar' | 'en'
 }> =>
@@ -185,9 +202,20 @@ export const userArbitrary = (): fc.Arbitrary<{
   })
 
 /**
- * Generator for medical ads
+ * Generator for medical ads (snake_case for test compatibility)
  */
-export const medicalAdArbitrary = (): fc.Arbitrary<MedicalAd> =>
+export const medicalAdArbitrary = (): fc.Arbitrary<{
+  id: string
+  provider_id: string
+  title: string
+  content: string
+  image_url: string | null
+  status: 'pending' | 'approved' | 'rejected'
+  display_priority: number | null
+  start_date: string | null
+  end_date: string | null
+  created_at: string | null
+}> =>
   fc.record({
     id: uuidArbitrary(),
     provider_id: uuidArbitrary(),
@@ -227,4 +255,54 @@ export const verificationDocumentArbitrary = (): fc.Arbitrary<{
     document_type: fc.constantFrom('license', 'certificate', 'id_card', 'proof_of_ownership'),
     document_url: fc.webUrl(),
     provider_id: uuidArbitrary()
+  })
+
+
+/**
+ * Generator for appointment status
+ */
+export const appointmentStatusArbitrary = (): fc.Arbitrary<'pending' | 'confirmed' | 'cancelled' | 'completed'> =>
+  fc.constantFrom<'pending' | 'confirmed' | 'cancelled' | 'completed'>('pending', 'confirmed', 'cancelled', 'completed')
+
+/**
+ * Generator for appointment contact info
+ */
+export const appointmentContactInfoArbitrary = (): fc.Arbitrary<{
+  name: string
+  phone: string
+  email?: string
+}> =>
+  fc.record({
+    name: fc.string({ minLength: 2, maxLength: 100 }),
+    phone: phoneArbitrary(),
+    email: fc.option(emailArbitrary(), { nil: undefined })
+  })
+
+/**
+ * Generator for future dates (for appointments)
+ */
+export const futureDateArbitrary = (): fc.Arbitrary<Date> =>
+  fc.integer({ min: Date.now() + 86400000, max: Date.now() + 365 * 86400000 }) // 1 day to 1 year from now
+    .map(timestamp => new Date(timestamp))
+
+/**
+ * Generator for CreateAppointmentData
+ */
+export const createAppointmentDataArbitrary = (): fc.Arbitrary<{
+  providerId: string
+  userId: string
+  datetime: Date
+  contactInfo: {
+    name: string
+    phone: string
+    email?: string
+  }
+  notes?: string
+}> =>
+  fc.record({
+    providerId: uuidArbitrary(),
+    userId: uuidArbitrary(),
+    datetime: futureDateArbitrary(),
+    contactInfo: appointmentContactInfoArbitrary(),
+    notes: fc.option(fc.string({ minLength: 0, maxLength: 500 }), { nil: undefined })
   })

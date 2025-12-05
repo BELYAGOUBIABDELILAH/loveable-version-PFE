@@ -1,8 +1,17 @@
-
 import { useState, useEffect } from 'react';
 import { useAnimateIn } from '@/lib/animations';
 import { Button } from '@/components/ui/button';
-import { ExternalLink, Heart, Lightbulb, RefreshCw, Stars, Zap } from 'lucide-react';
+import { 
+  Heart, 
+  Shield, 
+  MapPin, 
+  Clock, 
+  Users, 
+  CheckCircle,
+  Accessibility,
+  Phone,
+  Star
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const WhySection = ({ 
@@ -36,11 +45,9 @@ const WhyPage = () => {
   const showContent = useAnimateIn(false, 300);
   
   useEffect(() => {
-    // Simulate loading
     const timer = setTimeout(() => {
       setLoading(false);
     }, 1000);
-    
     return () => clearTimeout(timer);
   }, []);
   
@@ -54,81 +61,74 @@ const WhyPage = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-36 pb-24">
         <div className="flex flex-col items-center text-center mb-16">
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-6 text-foreground bg-clip-text">
-            Why?
+            Pourquoi CityHealth ?
           </h1>
           
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-            Everything we do starts with this question.
+            Votre santé mérite le meilleur accès aux soins à Sidi Bel Abbès
           </p>
           
           <div className="mt-10 glass-panel p-8 md:p-10 rounded-lg max-w-3xl mx-auto shadow-lg border-2 border-primary/20">
             <p className="text-xl md:text-2xl text-foreground/90">
-              Why should Cortex exist? Why should anyone care to use it? Why is privacy so important to us?
+              CityHealth est né d'un constat simple : trouver un professionnel de santé de confiance 
+              à Sidi Bel Abbès ne devrait pas être compliqué.
             </p>
             <p className="text-xl md:text-2xl text-foreground/90 mt-6">
-              Eventually, the "why" led us here.
+              Notre mission est de connecter les citoyens aux meilleurs prestataires de santé de la région.
             </p>
           </div>
         </div>
         
         <WhySection
           id="why-1"
-          icon={<Lightbulb className="w-6 h-6 text-primary" />}
-          title="Because why not do something different?"
+          icon={<Shield className="w-6 h-6 text-primary" />}
+          title="Des prestataires vérifiés"
           content={
             <>
               <p>
-                We've always approached product design this way. We look at our current tools and ask ourselves why it's done the way it is. Why do bookmarking tools have social features? Why do we use folders? Dropdowns? Are these outdated UI patterns still useful or are they just clutter? What if we do it better? Or just different?
+                Chaque professionnel de santé sur CityHealth passe par un processus de vérification rigoureux. 
+                Nous vérifions les licences, les qualifications et les avis des patients pour vous garantir 
+                des soins de qualité.
               </p>
               <p>
-                With Cortex we ultimately asked ourselves, why not? Why not find a different way to save what we care about? Why not remove all the other stuff that just gets in the way? Forget how it's usually done. Why not make it better?
+                Fini les incertitudes : avec le badge "Vérifié", vous savez que vous consultez un 
+                professionnel reconnu et fiable.
               </p>
-              <div className="mt-6">
-                <Button variant="outline" className="gap-2" asChild>
-                  <Link to="/how">
-                    MORE ON HOW WE THINK
-                    <ExternalLink size={16} />
-                  </Link>
-                </Button>
-              </div>
-              <div className="mt-4 text-sm text-muted-foreground">
-                <p className="font-medium">The beginning — How did we end up creating Cortex?</p>
-                <p className="mt-2 font-medium">A letter — How can we build an extension of your mind?﻿</p>
+              <div className="mt-6 flex flex-wrap gap-4">
+                <div className="flex items-center gap-2 bg-green-50 px-4 py-2 rounded-full">
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <span className="text-green-700 font-medium">Licences vérifiées</span>
+                </div>
+                <div className="flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-full">
+                  <Star className="w-5 h-5 text-blue-600" />
+                  <span className="text-blue-700 font-medium">Avis authentiques</span>
+                </div>
               </div>
             </>
           }
         />
-        
+
         <WhySection
           id="why-2"
-          icon={<Heart className="w-6 h-6 text-primary" />}
-          title="Because we need better relationships with technology."
+          icon={<Clock className="w-6 h-6 text-primary" />}
+          title="Services d'urgence 24h/24"
           content={
             <>
               <p>
-                There was a time when our tools were just tools. We picked up a hammer to build something, then put it back on the shelf when we were finished. It was a tool made for one simple purpose. It had no ulterior motives.
+                Les urgences médicales n'attendent pas. CityHealth vous permet de localiser rapidement 
+                les services d'urgence disponibles à tout moment, de jour comme de nuit.
               </p>
               <p>
-                Fast forward to today, and our tools have evolved. They've become smarter. They have algorithms, feeds, notifications. They are designed to make us spend as much time with them as possible. We must feed them, manage them, clean them, engage with them. Our tools no longer serve our purpose. We serve theirs.
-              </p>
-              <p>
-                Could we not use the magic of technology to build something better? Something that truly benefits us, rather than taking from us. Something designed in a way that fosters a special relationship with our tools once again. Something that serves a simple, necessary purpose.
-              </p>
-              <p>
-                We decided we could.
+                Notre carte interactive affiche en temps réel les pharmacies de garde, les urgences 
+                hospitalières et les médecins disponibles pour les consultations urgentes.
               </p>
               <div className="mt-6">
                 <Button variant="outline" className="gap-2" asChild>
-                  <Link to="/how">
-                    HOW WE MAKE OUR DECISIONS
-                    <ExternalLink size={16} />
+                  <Link to="/emergency">
+                    Voir les urgences
+                    <Phone size={16} />
                   </Link>
                 </Button>
-              </div>
-              <div className="mt-4 text-sm text-muted-foreground">
-                <p className="font-medium">Our promise from us to you</p>
-                <p className="mt-2 font-medium">A thought from Cortex on social features﻿</p>
-                <p className="mt-2 font-medium">A tool that works with your brain, not against it</p>
               </div>
             </>
           }
@@ -136,34 +136,98 @@ const WhyPage = () => {
         
         <WhySection
           id="why-3"
-          icon={<RefreshCw className="w-6 h-6 text-primary" />}
-          title="Because new beginnings are beautiful."
+          icon={<Accessibility className="w-6 h-6 text-primary" />}
+          title="Accessibilité pour tous"
           content={
             <>
               <p>
-                There's a reason we don't have an import feature. We like the idea of starting from scratch. Not only because humanity revolves around fresh starts, but this also requires you to reevaluate your relationship with data. It inspires you to be more conscious, more meticulous, more mindful of the things you save and collect.
+                Nous croyons que l'accès aux soins de santé est un droit fondamental. CityHealth 
+                met en avant les établissements accessibles aux personnes à mobilité réduite (PMR) 
+                et propose des filtres de recherche adaptés.
               </p>
               <p>
-                Digital clutter and information fatigue affect our real minds, whether we're aware of it or not. We want your new mind to be a break from that. It's a clean slate where you can deliberately choose what to save and consume. A mental sigh of relief.
+                Notre plateforme est conçue pour être utilisable par tous, avec une interface claire 
+                et des informations détaillées sur l'accessibilité de chaque établissement.
               </p>
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-muted p-4 rounded-lg">
+                  <h4 className="font-semibold mb-2">Filtres d'accessibilité</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Trouvez facilement les établissements avec accès PMR, ascenseurs, et places de parking adaptées.
+                  </p>
+                </div>
+                <div className="bg-muted p-4 rounded-lg">
+                  <h4 className="font-semibold mb-2">Visites à domicile</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Identifiez les professionnels qui proposent des consultations à domicile.
+                  </p>
+                </div>
+              </div>
             </>
           }
         />
         
         <WhySection
           id="why-4"
-          icon={<Zap className="w-6 h-6 text-primary" />}
-          title="Because a tool is just the means to an end, not the end in itself."
+          icon={<MapPin className="w-6 h-6 text-primary" />}
+          title="Conçu pour Sidi Bel Abbès"
           content={
             <>
               <p>
-                We built Cortex for doers and makers. For people who are busy doing other things and simply need a place to collect and remember what they care about.
+                CityHealth n'est pas une plateforme générique. Nous sommes spécialement conçus pour 
+                répondre aux besoins de santé de la population de Sidi Bel Abbès et ses environs.
               </p>
               <p>
-                Cortex doesn't interfere, doesn't bother and doesn't ask to be maintained. It's meant to serve you, as an extension of your mind. So you can think about anything and everything except the tool itself.
+                Notre équipe locale connaît les quartiers, les établissements et les spécificités 
+                de notre région. Nous travaillons main dans la main avec les professionnels de santé 
+                locaux pour vous offrir le meilleur service possible.
+              </p>
+              <div className="mt-6">
+                <Button variant="outline" className="gap-2" asChild>
+                  <Link to="/map">
+                    Explorer la carte
+                    <MapPin size={16} />
+                  </Link>
+                </Button>
+              </div>
+            </>
+          }
+        />
+
+        <WhySection
+          id="why-5"
+          icon={<Users className="w-6 h-6 text-primary" />}
+          title="Une communauté de confiance"
+          content={
+            <>
+              <p>
+                CityHealth est plus qu'un annuaire : c'est une communauté. Les patients partagent 
+                leurs expériences, les professionnels mettent à jour leurs informations, et ensemble, 
+                nous construisons un écosystème de santé plus transparent.
               </p>
               <p>
-                Because that's all it is: A tool meant to help you achieve something else. Those who like to procrastinate with folders and unmaintainable systems will find plenty of other apps to keep them busy. Cortex is for those who would rather draw and write and build and dance and sing.
+                Rejoignez des milliers de citoyens qui font confiance à CityHealth pour leurs 
+                besoins de santé quotidiens.
+              </p>
+            </>
+          }
+        />
+        
+        <WhySection
+          id="why-6"
+          icon={<Heart className="w-6 h-6 text-primary" />}
+          title="Votre santé, notre priorité"
+          content={
+            <>
+              <p>
+                Chez CityHealth, nous mettons la santé des citoyens au cœur de tout ce que nous faisons. 
+                Notre plateforme est gratuite pour les patients et conçue pour simplifier votre 
+                parcours de soins.
+              </p>
+              <p>
+                De la recherche d'un médecin généraliste à la prise de rendez-vous avec un spécialiste, 
+                en passant par la localisation de la pharmacie de garde la plus proche, CityHealth 
+                vous accompagne à chaque étape.
               </p>
             </>
           }
@@ -171,9 +235,9 @@ const WhyPage = () => {
         
         <div className="mt-16 text-center">
           <Button size="lg" className="gap-2" asChild>
-            <Link to="/">
-              Start Your Journey
-              <Stars size={18} />
+            <Link to="/search">
+              Trouver un prestataire
+              <MapPin size={18} />
             </Link>
           </Button>
         </div>

@@ -29,8 +29,7 @@ export const NewIndex = () => {
             longitude: position.coords.longitude,
           });
         },
-        (error) => {
-          console.log('Location access denied or unavailable, using default:', error);
+        () => {
           // Fallback vers les coordonnées de Sidi Bel Abbès
           setUserLocation(defaultLocation);
         },

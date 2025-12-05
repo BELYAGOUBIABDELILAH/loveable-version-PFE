@@ -5,8 +5,8 @@ import { AdvancedFilters } from '@/components/search/AdvancedFilters';
 import { SearchResults } from '@/components/search/SearchResults';
 import { SearchMap } from '@/components/search/SearchMap';
 import { SmartSuggestions } from '@/components/SmartSuggestions';
-import { supabase } from '@/integrations/supabase/client';
-import { Tables } from '@/integrations/supabase/types';
+import { getAllProviders } from '@/integrations/firebase/services/providerService';
+import { Provider as FirebaseProvider } from '@/integrations/firebase/types';
 import { OFFLINE_MODE } from '@/config/app';
 import { getProviders } from '@/data/providers';
 
@@ -28,13 +28,32 @@ export interface FilterState {
   home_visit_available: boolean;
 }
 
-type SupabaseProvider = Tables<"providers">;
-type Specialty = Tables<"specialties">;
-type Rating = Tables<"ratings">;
-
-export interface Provider extends SupabaseProvider {
-  specialty?: Specialty | null;
-  ratings?: Rating[];
+export interface Provider {
+  id: string;
+  user_id: string | null;
+  business_name: string;
+  provider_type: string;
+  specialty_id: string | null;
+  phone: string;
+  email: string | null;
+  address: string;
+  city: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  description: string | null;
+  avatar_url: string | null;
+  cover_image_url: string | null;
+  website: string | null;
+  verification_status: string;
+  is_emergency: boolean;
+  is_preloaded: boolean;
+  is_claimed: boolean;
+  accessibility_features: string[];
+  home_visit_available: boolean;
+  created_at: string;
+  updated_at: string;
+  specialty?: { name_fr?: string; name_ar?: string; name_en?: string } | null;
+  ratings?: { rating: number }[];
   avgRating?: number;
   ratingCount?: number;
 }
@@ -125,8 +144,7 @@ const SearchPage = () => {
             longitude: position.coords.longitude,
           });
         },
-        (error) => {
-          console.log('Location access denied or unavailable:', error);
+        () => {
           // Fallback: utiliser les coordonnées de Sidi Bel Abbès
           setUserLocation({
             latitude: 35.1903,
@@ -182,31 +200,42 @@ const SearchPage = () => {
             ratingCount: p.reviewsCount,
           }));
         } else {
-          const { data, error } = await supabase
-            .from("providers")
-            .select(`
-              *,
-              specialty:specialties(*),
-              ratings(*)
-            `)
-            .eq("verification_status", "verified")
-            .order("business_name");
-
-          if (error) throw error;
-
-          // Calculate average ratings
-          providersWithRatings = (data || []).map((provider) => {
-            const ratings = provider.ratings || [];
-            const avgRating = ratings.length > 0
-              ? ratings.reduce((sum: number, r: Rating) => sum + r.rating, 0) / ratings.length
-              : 0;
-
-            return {
-              ...provider,
-              avgRating: Math.round(avgRating * 10) / 10,
-              ratingCount: ratings.length,
-            };
-          });
+          // Fetch from Firebase
+          const firebaseProviders = await getAllProviders();
+          
+          // Filter verified providers and map to component format
+          providersWithRatings = firebaseProviders
+            .filter(p => p.verificationStatus === 'verified')
+            .map((p) => ({
+              id: p.id,
+              user_id: p.userId,
+              business_name: p.businessName,
+              provider_type: p.providerType,
+              specialty_id: p.specialtyId || null,
+              phone: p.phone,
+              email: p.email || null,
+              address: p.address,
+              city: p.city || null,
+              latitude: p.latitude || null,
+              longitude: p.longitude || null,
+              description: p.description || null,
+              avatar_url: p.avatarUrl || null,
+              cover_image_url: p.coverImageUrl || null,
+              website: p.website || null,
+              verification_status: p.verificationStatus,
+              is_emergency: p.isEmergency,
+              is_preloaded: p.isPreloaded,
+              is_claimed: p.isClaimed,
+              accessibility_features: p.accessibilityFeatures || [],
+              home_visit_available: p.homeVisitAvailable,
+              created_at: p.createdAt.toDate().toISOString(),
+              updated_at: p.updatedAt.toDate().toISOString(),
+              specialty: null,
+              ratings: [],
+              avgRating: 0,
+              ratingCount: 0,
+            }))
+            .sort((a, b) => a.business_name.localeCompare(b.business_name));
         }
 
         setAllProviders(providersWithRatings);

@@ -6,7 +6,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { collection, addDoc, Timestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, storage } from '@/integrations/firebase/client';
+import { COLLECTIONS } from '@/integrations/firebase/types';
 import { toast } from 'sonner';
 
 interface ProfileClaimFormProps {
@@ -96,18 +99,17 @@ export const ProfileClaimForm: React.FC<ProfileClaimFormProps> = ({
 
     for (const file of files) {
       const fileExt = file.name.split('.').pop();
-      const fileName = `${user?.id}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const fileName = `claim-docs/${user?.id}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
 
-      const { data, error } = await (supabase as any).storage
-        .from('claim-docs')
-        .upload(fileName, file);
-
-      if (error) {
+      try {
+        const storageRef = ref(storage, fileName);
+        await uploadBytes(storageRef, file);
+        const downloadUrl = await getDownloadURL(storageRef);
+        uploadedUrls.push(downloadUrl);
+      } catch (error) {
         console.error('Error uploading file:', error);
         throw new Error(`Erreur lors du téléchargement de ${file.name}`);
       }
-
-      uploadedUrls.push(fileName);
     }
 
     return uploadedUrls;
@@ -131,18 +133,18 @@ export const ProfileClaimForm: React.FC<ProfileClaimFormProps> = ({
       // Upload documentation files
       const documentationUrls = await uploadFiles(formData.documentation);
 
-      // Insert claim request into database
-      const { error } = await (supabase as any)
-        .from('profile_claims')
-        .insert({
-          provider_id: providerId,
-          user_id: user.id,
+      // Insert claim request into Firebase
+      try {
+        const claimsRef = collection(db, COLLECTIONS.profileClaims);
+        await addDoc(claimsRef, {
+          providerId: providerId,
+          userId: user.id,
           status: 'pending',
           documentation: documentationUrls,
           notes: formData.reason.trim(),
+          createdAt: Timestamp.now()
         });
-
-      if (error) {
+      } catch (error) {
         console.error('Error submitting claim:', error);
         throw new Error('Erreur lors de la soumission de la demande');
       }

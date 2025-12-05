@@ -222,5 +222,37 @@ service cloud.firestore {
       allow update: if isOwner(resource.data.userId); // Mark as read
       allow delete: if isOwner(resource.data.userId) || isAdmin();
     }
+    
+    // ============================================
+    // APPOINTMENTS COLLECTION
+    // Requirements: 3.2
+    // ============================================
+    
+    match /appointments/{appointmentId} {
+      // Helper to check if user is the provider owner
+      function isProviderOwner(providerId) {
+        return exists(/databases/$(database)/documents/providers/$(providerId)) &&
+          get(/databases/$(database)/documents/providers/$(providerId)).data.userId == request.auth.uid;
+      }
+      
+      // Allow read for appointment owner (user who booked) or provider owner
+      allow read: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || 
+         isProviderOwner(resource.data.providerId) ||
+         isAdmin());
+      
+      // Allow create for authenticated users (must set themselves as userId)
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid;
+      
+      // Allow update for user who booked, provider owner, or admin
+      allow update: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || 
+         isProviderOwner(resource.data.providerId) ||
+         isAdmin());
+      
+      // Only admin can delete appointments
+      allow delete: if isAdmin();
+    }
   }
 }

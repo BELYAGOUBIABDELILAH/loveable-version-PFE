@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { MapPin, Navigation, Filter, Phone, Star, Clock, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,99 +8,121 @@ import { Badge } from '@/components/ui/badge';
 import { useScrollReveal } from '@/hooks/useScrollReveal';
 import { useToastNotifications } from '@/hooks/useToastNotifications';
 import ToastContainer from '@/components/ToastContainer';
+import { MapContainerWrapper, MarkerCluster, GeolocationControl } from '@/components/maps';
+import type { ProviderMarkerProps } from '@/components/maps';
+import { useQuery } from '@tanstack/react-query';
+import { getAllProviders } from '@/integrations/firebase/services/providerService';
+import type { Provider } from '@/integrations/firebase/types';
+import SkeletonCard from '@/components/SkeletonCard';
 
 const MapPage = () => {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedProvider, setSelectedProvider] = useState<any>(null);
+  const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   const mapRef = useScrollReveal();
   const { toasts, addToast } = useToastNotifications();
 
-  const categories = [
-    'Tous',
-    'Hôpitaux',
-    'Cliniques',
-    'Médecins Généralistes',
-    'Spécialistes',
-    'Pharmacies',
-    'Laboratoires',
-    'Urgences'
-  ];
+  // Fetch providers from Firestore using TanStack Query
+  const { 
+    data: providers = [], 
+    isLoading, 
+    error,
+    refetch 
+  } = useQuery({
+    queryKey: ['providers-map'],
+    queryFn: getAllProviders,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    refetchOnWindowFocus: false,
+  });
 
-  const providers = [
-    {
-      id: 1,
-      name: "Hôpital Universitaire Dr. Hassani Abdelkader",
-      type: "Hôpital",
-      address: "Avenue de la République, Centre Ville",
-      phone: "+213 48 54 XX XX",
-      rating: 4.8,
-      coordinates: { lat: 35.1969, lng: -0.6394 },
-      isOpen: true,
-      services: ["Urgences 24/7", "Cardiologie", "Chirurgie"],
-      image: "/placeholder.svg"
-    },
-    {
-      id: 2,
-      name: "Cabinet Dr. Benali (Cardiologue)",
-      type: "Spécialiste",
-      address: "Rue des Martyrs, Hay El Badr",
-      phone: "+213 48 55 XX XX",
-      rating: 4.9,
-      coordinates: { lat: 35.2012, lng: -0.6456 },
-      isOpen: true,
-      services: ["Consultation", "ECG", "Échocardiographie"],
-      image: "/placeholder.svg"
-    },
-    {
-      id: 3,
-      name: "Pharmacie Centrale",
-      type: "Pharmacie",
-      address: "Boulevard Emir Abdelkader, Centre Ville",
-      phone: "+213 48 56 XX XX",
-      rating: 4.7,
-      coordinates: { lat: 35.1945, lng: -0.6378 },
-      isOpen: true,
-      services: ["Médicaments", "Parapharmacie", "Garde 24h"],
-      image: "/placeholder.svg"
-    },
-    {
-      id: 4,
-      name: "Laboratoire d'Analyses Médicales Atlas",
-      type: "Laboratoire",
-      address: "Rue Ahmed Zabana, Sidi Bel Abbès Est",
-      phone: "+213 48 57 XX XX",
-      rating: 4.6,
-      coordinates: { lat: 35.2034, lng: -0.6312 },
-      isOpen: false,
-      services: ["Analyses sanguines", "Radiologie", "Échographie"],
-      image: "/placeholder.svg"
+  // Get user location
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        () => {
+          // Geolocation unavailable, using default center
+        }
+      );
     }
+  }, []);
+
+
+  const categories = [
+    { value: '', label: 'Tous' },
+    { value: 'doctor', label: 'Médecins' },
+    { value: 'clinic', label: 'Cliniques' },
+    { value: 'hospital', label: 'Hôpitaux' },
+    { value: 'pharmacy', label: 'Pharmacies' },
+    { value: 'laboratory', label: 'Laboratoires' }
   ];
 
-  const handleProviderSelect = (provider: any) => {
+  const getCategoryDisplayName = (type: string) => {
+    const category = categories.find(c => c.value === type);
+    return category?.label || type;
+  };
+
+  const handleProviderSelect = (provider: Provider) => {
     setSelectedProvider(provider);
     addToast({
       type: 'info',
       title: 'Prestataire sélectionné',
-      message: `${provider.name} - ${provider.address}`
+      message: `${provider.businessName} - ${provider.address}`
     });
   };
 
-  const handleGetDirections = (provider: any) => {
+  const handleGetDirections = (provider: Provider) => {
+    if (provider.latitude && provider.longitude) {
+      const url = userLocation
+        ? `https://www.google.com/maps/dir/?api=1&origin=${userLocation.lat},${userLocation.lng}&destination=${provider.latitude},${provider.longitude}`
+        : `https://www.google.com/maps/dir/?api=1&destination=${provider.latitude},${provider.longitude}`;
+      window.open(url, '_blank');
+    }
     addToast({
       type: 'success',
       title: 'Itinéraire',
-      message: `Ouverture de l'itinéraire vers ${provider.name}`
+      message: `Ouverture de l'itinéraire vers ${provider.businessName}`
     });
   };
 
+  // Filter providers based on search and category
   const filteredProviders = providers.filter(provider => {
-    const matchesCategory = !selectedCategory || selectedCategory === 'Tous' || provider.type === selectedCategory;
-    const matchesSearch = !searchQuery || provider.name.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
+    const matchesCategory = !selectedCategory || provider.providerType === selectedCategory;
+    const matchesSearch = !searchQuery || 
+      provider.businessName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (provider.address && provider.address.toLowerCase().includes(searchQuery.toLowerCase()));
+    // Only include providers with valid coordinates
+    const hasCoordinates = provider.latitude && provider.longitude;
+    return matchesCategory && matchesSearch && hasCoordinates;
   });
+
+  // Convert to marker props for the map
+  const markerProviders: ProviderMarkerProps[] = filteredProviders.map(p => ({
+    id: p.id,
+    business_name: p.businessName,
+    provider_type: p.providerType,
+    address: p.address,
+    phone: p.phone,
+    latitude: p.latitude!,
+    longitude: p.longitude!,
+    verification_status: p.verificationStatus,
+    is_emergency: p.isEmergency,
+  }));
+
+  const handleMarkerClick = (providerId: string) => {
+    const provider = providers.find(p => p.id === providerId);
+    if (provider) {
+      handleProviderSelect(provider);
+    }
+  };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 via-background to-secondary/5">
@@ -121,7 +143,7 @@ const MapPage = () => {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={18} />
                 <Input
-                  placeholder="Nom du prestataire..."
+                  placeholder="Nom ou adresse..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10"
@@ -137,8 +159,8 @@ const MapPage = () => {
                 </SelectTrigger>
                 <SelectContent>
                   {categories.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category}
+                    <SelectItem key={category.value} value={category.value}>
+                      {category.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -146,9 +168,9 @@ const MapPage = () => {
             </div>
             
             <div className="flex items-end">
-              <Button className="w-full">
+              <Button className="w-full" disabled={isLoading}>
                 <Filter className="mr-2" size={18} />
-                Filtrer ({filteredProviders.length})
+                {isLoading ? 'Chargement...' : `${filteredProviders.length} prestataire(s)`}
               </Button>
             </div>
           </div>
@@ -156,114 +178,146 @@ const MapPage = () => {
       </div>
 
       <div className="max-w-7xl mx-auto px-6 pb-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Map Section */}
-          <div className="lg:col-span-2">
-            <Card ref={mapRef} className="glass-card h-[600px] relative overflow-hidden">
-              <CardContent className="p-0 h-full">
-                {/* Placeholder for map - In a real app, you'd integrate Mapbox or Google Maps */}
-                <div className="h-full bg-gradient-to-br from-blue-100 to-green-100 dark:from-blue-900/20 dark:to-green-900/20 flex items-center justify-center relative">
-                  <div className="text-center space-y-4">
-                    <MapPin className="mx-auto text-primary animate-bounce-soft" size={64} />
-                    <h3 className="text-xl font-semibold">Carte Interactive</h3>
-                    <p className="text-muted-foreground max-w-md">
-                      Cette zone afficherait une carte interactive avec les prestataires de santé.
-                      Intégration Mapbox/Google Maps à venir.
-                    </p>
-                  </div>
-                  
-                  {/* Simulated map markers */}
-                  <div className="absolute top-1/4 left-1/3 w-4 h-4 bg-red-500 rounded-full border-2 border-white shadow-lg animate-pulse"></div>
-                  <div className="absolute top-1/2 right-1/3 w-4 h-4 bg-blue-500 rounded-full border-2 border-white shadow-lg animate-pulse"></div>
-                  <div className="absolute bottom-1/3 left-1/2 w-4 h-4 bg-green-500 rounded-full border-2 border-white shadow-lg animate-pulse"></div>
+        {error ? (
+          <Card className="glass-card">
+            <CardContent className="p-12 text-center">
+              <MapPin className="mx-auto mb-4 text-destructive" size={64} />
+              <h3 className="text-2xl font-semibold mb-4">Erreur de chargement</h3>
+              <p className="text-muted-foreground mb-6">
+                {error instanceof Error ? error.message : 'Impossible de charger les prestataires.'}
+              </p>
+              <Button onClick={() => refetch()}>
+                Réessayer
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Map Section */}
+            <div className="lg:col-span-2">
+              <Card ref={mapRef} className="glass-card h-[600px] relative overflow-hidden">
+                <CardContent className="p-0 h-full">
+                  <MapContainerWrapper className="h-full w-full">
+                    <GeolocationControl />
+                    <MarkerCluster 
+                      providers={markerProviders}
+                      onMarkerClick={handleMarkerClick}
+                    />
+                  </MapContainerWrapper>
                   
                   {/* Legend */}
-                  <div className="absolute bottom-4 left-4 glass-panel p-3 rounded-lg">
+                  <div className="absolute bottom-4 left-4 z-[1000] glass-panel p-3 rounded-lg">
                     <h4 className="font-medium mb-2">Légende</h4>
                     <div className="space-y-1 text-sm">
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                        <span>Hôpitaux</span>
+                        <div className="w-3 h-3 bg-[#4285F4] rounded-full"></div>
+                        <span>Vérifiés</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
-                        <span>Cliniques</span>
+                        <div className="w-3 h-3 bg-[#DC2626] rounded-full"></div>
+                        <span>Urgences</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                        <span>Pharmacies</span>
+                        <div className="w-3 h-3 bg-[#6B7280] rounded-full"></div>
+                        <span>Standards</span>
                       </div>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+                </CardContent>
+              </Card>
+            </div>
 
-          {/* Provider List */}
-          <div className="space-y-4">
-            <h2 className="text-xl font-semibold">Prestataires ({filteredProviders.length})</h2>
-            
-            <div className="space-y-3 max-h-[600px] overflow-y-auto">
-              {filteredProviders.map((provider, index) => (
-                <Card 
-                  key={provider.id} 
-                  className={`glass-card cursor-pointer transition-all duration-300 hover-lift animate-scale-in ${
-                    selectedProvider?.id === provider.id ? 'ring-2 ring-primary' : ''
-                  }`}
-                  style={{ animationDelay: `${index * 0.1}s` }}
-                  onClick={() => handleProviderSelect(provider)}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-sm line-clamp-2">{provider.name}</h3>
-                        <p className="text-xs text-muted-foreground">{provider.type}</p>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Badge variant={provider.isOpen ? 'default' : 'secondary'} className="text-xs">
-                          {provider.isOpen ? 'Ouvert' : 'Fermé'}
-                        </Badge>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2 text-xs">
-                      <div className="flex items-center gap-2">
-                        <MapPin size={14} className="text-muted-foreground flex-shrink-0" />
-                        <span className="line-clamp-1">{provider.address}</span>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        <Phone size={14} className="text-muted-foreground flex-shrink-0" />
-                        <span>{provider.phone}</span>
-                      </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1">
-                          <Star size={14} className="text-yellow-500 fill-yellow-500" />
-                          <span>{provider.rating}</span>
+
+            {/* Provider List */}
+            <div className="space-y-4">
+              <h2 className="text-xl font-semibold">
+                Prestataires ({isLoading ? '...' : filteredProviders.length})
+              </h2>
+              
+              <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                {isLoading ? (
+                  Array.from({ length: 4 }).map((_, index) => (
+                    <SkeletonCard key={index} />
+                  ))
+                ) : filteredProviders.length === 0 ? (
+                  <Card className="glass-card">
+                    <CardContent className="p-6 text-center">
+                      <MapPin className="mx-auto mb-2 text-muted-foreground" size={32} />
+                      <p className="text-muted-foreground">
+                        Aucun prestataire trouvé avec ces critères.
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  filteredProviders.map((provider, index) => (
+                    <Card 
+                      key={provider.id} 
+                      className={`glass-card cursor-pointer transition-all duration-300 hover-lift animate-scale-in ${
+                        selectedProvider?.id === provider.id ? 'ring-2 ring-primary' : ''
+                      }`}
+                      style={{ animationDelay: `${index * 0.1}s` }}
+                      onClick={() => handleProviderSelect(provider)}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-sm line-clamp-2">{provider.businessName}</h3>
+                            <p className="text-xs text-muted-foreground">
+                              {getCategoryDisplayName(provider.providerType)}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Badge 
+                              variant={provider.verificationStatus === 'verified' ? 'default' : 'secondary'} 
+                              className="text-xs"
+                            >
+                              {provider.verificationStatus === 'verified' ? '✓ Vérifié' : 'En attente'}
+                            </Badge>
+                          </div>
                         </div>
                         
-                        <Button 
-                          size="sm" 
-                          variant="outline" 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleGetDirections(provider);
-                          }}
-                          className="h-6 px-2 text-xs"
-                        >
-                          <Navigation size={12} className="mr-1" />
-                          Itinéraire
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                        <div className="space-y-2 text-xs">
+                          <div className="flex items-center gap-2">
+                            <MapPin size={14} className="text-muted-foreground flex-shrink-0" />
+                            <span className="line-clamp-1">{provider.address}</span>
+                          </div>
+                          
+                          <div className="flex items-center gap-2">
+                            <Phone size={14} className="text-muted-foreground flex-shrink-0" />
+                            <span>{provider.phone}</span>
+                          </div>
+                          
+                          {provider.isEmergency && (
+                            <div className="flex items-center gap-2">
+                              <Clock size={14} className="text-red-500 flex-shrink-0" />
+                              <span className="text-red-500">Service d'urgence</span>
+                            </div>
+                          )}
+                          
+                          <div className="flex items-center justify-end">
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleGetDirections(provider);
+                              }}
+                              className="h-6 px-2 text-xs"
+                            >
+                              <Navigation size={12} className="mr-1" />
+                              Itinéraire
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
+
 
         {/* Selected Provider Details */}
         {selectedProvider && (
@@ -271,8 +325,16 @@ const MapPage = () => {
             <CardContent className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <h3 className="text-2xl font-bold mb-2">{selectedProvider.name}</h3>
-                  <Badge className="mb-4">{selectedProvider.type}</Badge>
+                  <h3 className="text-2xl font-bold mb-2">{selectedProvider.businessName}</h3>
+                  <div className="flex gap-2 mb-4">
+                    <Badge>{getCategoryDisplayName(selectedProvider.providerType)}</Badge>
+                    {selectedProvider.verificationStatus === 'verified' && (
+                      <Badge variant="secondary">✓ Vérifié</Badge>
+                    )}
+                    {selectedProvider.isEmergency && (
+                      <Badge variant="destructive">Urgences</Badge>
+                    )}
+                  </div>
                   
                   <div className="space-y-3">
                     <div className="flex items-center gap-3">
@@ -285,30 +347,15 @@ const MapPage = () => {
                       <span>{selectedProvider.phone}</span>
                     </div>
                     
-                    <div className="flex items-center gap-3">
-                      <Star className="text-yellow-500 fill-yellow-500 flex-shrink-0" size={20} />
-                      <span>{selectedProvider.rating} / 5</span>
-                    </div>
-                    
-                    <div className="flex items-center gap-3">
-                      <Clock className="text-primary flex-shrink-0" size={20} />
-                      <Badge variant={selectedProvider.isOpen ? 'default' : 'secondary'}>
-                        {selectedProvider.isOpen ? 'Ouvert maintenant' : 'Fermé'}
-                      </Badge>
-                    </div>
+                    {selectedProvider.description && (
+                      <p className="text-muted-foreground text-sm mt-4">
+                        {selectedProvider.description}
+                      </p>
+                    )}
                   </div>
                 </div>
                 
-                <div>
-                  <h4 className="font-semibold mb-3">Services disponibles</h4>
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {selectedProvider.services.map((service: string, index: number) => (
-                      <Badge key={index} variant="outline">
-                        {service}
-                      </Badge>
-                    ))}
-                  </div>
-                  
+                <div className="flex flex-col justify-end">
                   <div className="flex gap-3">
                     <Button 
                       className="flex-1"
@@ -317,7 +364,11 @@ const MapPage = () => {
                       <Navigation className="mr-2" size={18} />
                       Itinéraire
                     </Button>
-                    <Button variant="outline" className="flex-1">
+                    <Button 
+                      variant="outline" 
+                      className="flex-1"
+                      onClick={() => window.open(`tel:${selectedProvider.phone}`, '_self')}
+                    >
                       <Phone className="mr-2" size={18} />
                       Appeler
                     </Button>

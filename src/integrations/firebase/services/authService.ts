@@ -276,6 +276,23 @@ export async function resetPassword(email: string): Promise<void> {
 }
 
 /**
+ * Send verification email to user
+ * Firebase: sendEmailVerification(user)
+ */
+export async function sendVerificationEmailToUser(user: User): Promise<void> {
+  if (OFFLINE_MODE) {
+    throw new Error('Email verification not available in offline mode');
+  }
+
+  try {
+    await sendEmailVerification(user);
+  } catch (error: any) {
+    console.error('Send verification email error:', error);
+    throw new Error(getAuthErrorMessage(error.code));
+  }
+}
+
+/**
  * Convert Firebase auth error codes to user-friendly messages
  */
 function getAuthErrorMessage(code: string): string {

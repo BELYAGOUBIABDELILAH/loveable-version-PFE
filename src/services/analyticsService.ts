@@ -1,3 +1,15 @@
+/**
+ * Analytics Service - Firebase Implementation
+ * 
+ * Migrated from Supabase Edge Functions to Firebase Firestore
+ * Stores analytics events in the analyticsEvents collection
+ */
+
+import { collection, addDoc, Timestamp } from 'firebase/firestore';
+import { db } from '@/integrations/firebase/client';
+import { COLLECTIONS } from '@/integrations/firebase/types';
+import { OFFLINE_MODE } from '@/config/app';
+
 interface AnalyticsEventData {
   event_type: string;
   event_data?: Record<string, any>;
@@ -41,33 +53,30 @@ class AnalyticsService {
   }
 
   private async flush() {
-    if (this.queue.length === 0) return;
+    if (this.queue.length === 0 || OFFLINE_MODE) return;
 
     const events = [...this.queue];
     this.queue = [];
 
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analytics-track`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          },
-          body: JSON.stringify({
-            ...events[0],
-            session_id: this.sessionId,
-            page_url: window.location.href,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        console.error('Analytics tracking failed:', response.statusText);
+      const analyticsRef = collection(db, COLLECTIONS.analyticsEvents);
+      
+      // Store each event in Firestore
+      for (const event of events) {
+        await addDoc(analyticsRef, {
+          eventType: event.event_type,
+          eventData: event.event_data || {},
+          userId: event.user_id || null,
+          sessionId: this.sessionId,
+          pageUrl: window.location.href,
+          userAgent: navigator.userAgent,
+          createdAt: Timestamp.now()
+        });
       }
     } catch (error) {
       console.error('Analytics error:', error);
+      // Re-queue events on failure
+      this.queue = [...events, ...this.queue];
     }
   }
 

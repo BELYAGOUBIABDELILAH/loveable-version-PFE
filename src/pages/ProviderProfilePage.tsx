@@ -7,21 +7,71 @@ import { MapPin, Star, ShieldCheck, Phone, Share2, Flag, Calendar, Image as Imag
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { useToastNotifications } from "@/hooks/useToastNotifications";
 import ToastContainer from "@/components/ToastContainer";
-import { supabase } from "@/integrations/supabase/client";
-import { Tables } from "@/integrations/supabase/types";
+import { getProviderById as getFirebaseProviderById } from "@/integrations/firebase/services/providerService";
+// Firebase types are used for API calls, local interfaces for component state
 import { OFFLINE_MODE } from "@/config/app";
 import { getProviderById } from "@/data/providers";
+import { MapContainerWrapper, ProviderMarker } from "@/components/maps";
+import { BookingModal } from "@/components/BookingModal";
 
-type Provider = Tables<"providers">;
-type Service = Tables<"services">;
-type Schedule = Tables<"schedules">;
-type Rating = Tables<"ratings">;
-type Specialty = Tables<"specialties">;
+interface Rating {
+  id: string;
+  rating: number;
+  comment?: string | null;
+  created_at?: string | null;
+}
 
-interface ProviderWithRelations extends Provider {
-  specialty?: Specialty | null;
-  services?: Service[];
-  schedules?: Schedule[];
+interface LocalSpecialty {
+  id: string;
+  nameFr: string;
+  nameAr?: string | null;
+  nameEn?: string | null;
+  icon?: string | null;
+  createdAt: string;
+}
+
+interface LocalService {
+  id: string;
+  nameFr: string;
+  nameAr?: string | null;
+  nameEn?: string | null;
+  price?: number | null;
+}
+
+interface LocalSchedule {
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  isActive: boolean;
+}
+
+interface ProviderWithRelations {
+  id: string;
+  user_id: string | null;
+  business_name: string;
+  provider_type: string;
+  specialty_id: string | null;
+  phone: string;
+  email: string | null;
+  address: string;
+  city: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  description: string | null;
+  avatar_url: string | null;
+  cover_image_url: string | null;
+  website: string | null;
+  verification_status: string;
+  is_emergency: boolean;
+  is_preloaded: boolean;
+  is_claimed: boolean;
+  accessibility_features: string[];
+  home_visit_available: boolean;
+  created_at: string;
+  updated_at: string;
+  specialty?: LocalSpecialty | null;
+  services?: LocalService[];
+  schedules?: LocalSchedule[];
   ratings?: Rating[];
   avgRating?: number;
   ratingCount?: number;
@@ -75,6 +125,7 @@ const ProviderProfilePage = () => {
   const [provider, setProvider] = useState<ProviderWithRelations | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showBooking, setShowBooking] = useState(false);
 
   useEffect(() => {
     const fetchProvider = async () => {
@@ -121,11 +172,11 @@ const ProviderProfilePage = () => {
               updated_at: new Date().toISOString(),
               specialty: mockProvider.specialty ? { 
                 id: '1', 
-                name_fr: mockProvider.specialty, 
-                name_ar: null, 
-                name_en: null, 
+                nameFr: mockProvider.specialty, 
+                nameAr: null, 
+                nameEn: null, 
                 icon: null, 
-                created_at: new Date().toISOString() 
+                createdAt: new Date().toISOString() 
               } : null,
               services: [],
               schedules: [],
@@ -135,30 +186,40 @@ const ProviderProfilePage = () => {
             };
           }
         } else {
-          const { data, error: providerError } = await supabase
-            .from("providers")
-            .select(`
-              *,
-              specialty:specialties(*),
-              services(*),
-              schedules(*),
-              ratings(*)
-            `)
-            .eq("id", id)
-            .single();
+          // Fetch from Firebase
+          const firebaseProvider = await getFirebaseProviderById(id);
 
-          if (providerError) throw providerError;
-
-          if (data) {
-            const ratings = data.ratings || [];
-            const avgRating = ratings.length > 0
-              ? ratings.reduce((sum, r) => sum + r.rating, 0) / ratings.length
-              : 0;
-
+          if (firebaseProvider) {
             providerData = {
-              ...data,
-              avgRating: Math.round(avgRating * 10) / 10,
-              ratingCount: ratings.length,
+              id: firebaseProvider.id,
+              user_id: firebaseProvider.userId,
+              business_name: firebaseProvider.businessName,
+              provider_type: firebaseProvider.providerType,
+              specialty_id: firebaseProvider.specialtyId || null,
+              phone: firebaseProvider.phone,
+              email: firebaseProvider.email || null,
+              address: firebaseProvider.address,
+              city: firebaseProvider.city || null,
+              latitude: firebaseProvider.latitude || null,
+              longitude: firebaseProvider.longitude || null,
+              description: firebaseProvider.description || null,
+              avatar_url: firebaseProvider.avatarUrl || null,
+              cover_image_url: firebaseProvider.coverImageUrl || null,
+              website: firebaseProvider.website || null,
+              verification_status: firebaseProvider.verificationStatus,
+              is_emergency: firebaseProvider.isEmergency,
+              is_preloaded: firebaseProvider.isPreloaded,
+              is_claimed: firebaseProvider.isClaimed,
+              accessibility_features: firebaseProvider.accessibilityFeatures || [],
+              home_visit_available: firebaseProvider.homeVisitAvailable,
+              created_at: firebaseProvider.createdAt.toDate().toISOString(),
+              updated_at: firebaseProvider.updatedAt.toDate().toISOString(),
+              specialty: null,
+              services: [],
+              schedules: [],
+              ratings: [],
+              avgRating: 0,
+              ratingCount: 0,
             };
           }
         }
@@ -249,12 +310,12 @@ const ProviderProfilePage = () => {
   }
 
   // Get specialty name (default to French)
-  const specialtyName = provider.specialty?.name_fr || provider.provider_type;
+  const specialtyName = provider.specialty?.nameFr || provider.provider_type;
   
   // Format schedules for display
-  const todaySchedule = provider.schedules?.find(s => s.day_of_week === new Date().getDay() && s.is_active);
+  const todaySchedule = provider.schedules?.find(s => s.dayOfWeek === new Date().getDay() && s.isActive);
   const scheduleText = todaySchedule 
-    ? `Today ${todaySchedule.start_time}–${todaySchedule.end_time}`
+    ? `Today ${todaySchedule.startTime}–${todaySchedule.endTime}`
     : "Check availability";
 
   return (
@@ -289,7 +350,7 @@ const ProviderProfilePage = () => {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button>Book Appointment</Button>
+            <Button onClick={() => setShowBooking(true)}>Book Appointment</Button>
             <FavoriteButton 
               providerId={provider.id} 
               variant="outline"
@@ -311,7 +372,7 @@ const ProviderProfilePage = () => {
               <p>{provider.description || "No description available."}</p>
               {provider.specialty && (
                 <div className="flex flex-wrap gap-2">
-                  <Badge variant="outline">{provider.specialty.name_fr}</Badge>
+                  <Badge variant="outline">{provider.specialty.nameFr}</Badge>
                 </div>
               )}
               {provider.services && provider.services.length > 0 && (
@@ -320,7 +381,7 @@ const ProviderProfilePage = () => {
                   <div className="flex flex-wrap gap-2">
                     {provider.services.map((service) => (
                       <Badge key={service.id} variant="outline">
-                        {service.name_fr}
+                        {service.nameFr}
                         {service.price && ` - ${service.price} DZD`}
                       </Badge>
                     ))}
@@ -436,10 +497,47 @@ const ProviderProfilePage = () => {
           <Card className="glass-card">
             <CardHeader className="py-4"><CardTitle>Location</CardTitle></CardHeader>
             <CardContent>
-              <div className="rounded-lg h-56 bg-gradient-to-br from-muted/50 to-secondary/20 grid place-items-center text-muted-foreground">
-                Google Maps placeholder
-              </div>
-              <Button variant="outline" className="w-full mt-3">Open in Maps</Button>
+              {provider.latitude && provider.longitude ? (
+                <div className="rounded-lg h-56 overflow-hidden">
+                  <MapContainerWrapper
+                    center={[provider.latitude, provider.longitude]}
+                    zoom={15}
+                  >
+                    <ProviderMarker
+                      id={provider.id}
+                      business_name={provider.business_name}
+                      provider_type={provider.provider_type}
+                      address={provider.address}
+                      phone={provider.phone}
+                      latitude={provider.latitude}
+                      longitude={provider.longitude}
+                      verification_status={provider.verification_status}
+                      is_emergency={provider.is_emergency}
+                      accessibility_features={provider.accessibility_features}
+                      home_visit_available={provider.home_visit_available}
+                    />
+                  </MapContainerWrapper>
+                </div>
+              ) : (
+                <div className="rounded-lg h-56 bg-gradient-to-br from-muted/50 to-secondary/20 grid place-items-center text-muted-foreground">
+                  <div className="text-center">
+                    <MapPin className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p className="text-sm">Location not available</p>
+                  </div>
+                </div>
+              )}
+              <Button 
+                variant="outline" 
+                className="w-full mt-3"
+                onClick={() => {
+                  if (provider.latitude && provider.longitude) {
+                    window.open(`https://www.google.com/maps/dir/?api=1&destination=${provider.latitude},${provider.longitude}`, '_blank');
+                  }
+                }}
+                disabled={!provider.latitude || !provider.longitude}
+              >
+                Open in Maps
+              </Button>
             </CardContent>
           </Card>
 
@@ -453,6 +551,14 @@ const ProviderProfilePage = () => {
           </Card>
         </div>
       </section>
+
+      {/* Booking Modal */}
+      <BookingModal
+        open={showBooking}
+        onOpenChange={setShowBooking}
+        providerName={provider.business_name}
+        providerId={provider.id}
+      />
     </main>
   );
 };

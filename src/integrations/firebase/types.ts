@@ -51,6 +51,7 @@ export interface Provider {
   isClaimed: boolean;
   accessibilityFeatures: string[];
   homeVisitAvailable: boolean;
+  photos?: string[];
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
@@ -220,6 +221,39 @@ export interface Rating {
   createdAt: Timestamp;
 }
 
+// Appointment Types
+export type AppointmentStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed';
+
+// Appointment Interface (Firestore: appointments collection)
+export interface Appointment {
+  id: string;
+  providerId: string;
+  userId: string;
+  datetime: Timestamp;
+  status: AppointmentStatus;
+  contactInfo: {
+    name: string;
+    phone: string;
+    email?: string;
+  };
+  notes?: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// Create Appointment Data Interface (for creating new appointments)
+export interface CreateAppointmentData {
+  providerId: string;
+  userId: string;
+  datetime: Date;
+  contactInfo: {
+    name: string;
+    phone: string;
+    email?: string;
+  };
+  notes?: string;
+}
+
 // Collection names mapping
 export const COLLECTIONS = {
   providers: 'providers',
@@ -238,4 +272,5 @@ export const COLLECTIONS = {
   adminLogs: 'adminLogs',
   notifications: 'notifications',
   ratings: 'ratings',
+  appointments: 'appointments',
 } as const;

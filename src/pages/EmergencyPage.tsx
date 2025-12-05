@@ -1,18 +1,51 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Ambulance, MapPin, PhoneCall, Clock, Filter, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { AlertTriangle, Ambulance, MapPin, PhoneCall, Filter, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { supabase } from "@/integrations/supabase/client";
-import { Tables } from "@/integrations/supabase/types";
+import { getEmergencyProviders } from "@/integrations/firebase/services/providerService";
 import { OFFLINE_MODE } from "@/config/app";
 import { getProviders } from "@/data/providers";
+import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import MarkerClusterGroup from "react-leaflet-cluster";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
-type Provider = Tables<"providers">;
+// Custom emergency marker icon (red)
+const emergencyIcon = new L.Icon({
+  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png",
+  shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+});
 
-interface EmergencyProvider extends Provider {
-  distance?: number; // Will be calculated based on location
+interface EmergencyProvider {
+  id: string;
+  user_id: string | null;
+  business_name: string;
+  provider_type: string;
+  specialty_id: string | null;
+  phone: string;
+  email: string | null;
+  address: string;
+  city: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  description: string | null;
+  avatar_url: string | null;
+  cover_image_url: string | null;
+  website: string | null;
+  verification_status: string;
+  is_emergency: boolean;
+  is_preloaded: boolean;
+  is_claimed: boolean;
+  accessibility_features: string[];
+  home_visit_available: boolean;
+  created_at: string;
+  updated_at: string;
+  distance?: number;
 }
 
 const EmergencyPage = () => {
@@ -65,18 +98,34 @@ const EmergencyPage = () => {
               distance: Math.round((1 + index * 1.5) * 10) / 10,
             }));
         } else {
-          const { data, error } = await supabase
-            .from("providers")
-            .select("*")
-            .eq("is_emergency", true)
-            .eq("verification_status", "verified")
-            .order("business_name");
+          // Fetch from Firebase
+          const firebaseProviders = await getEmergencyProviders();
 
-          if (error) throw error;
-
-          // Calculate mock distances
-          providersWithDistance = (data || []).map((provider, index) => ({
-            ...provider,
+          // Map to component format and calculate mock distances
+          providersWithDistance = firebaseProviders.map((p, index) => ({
+            id: p.id,
+            user_id: p.userId,
+            business_name: p.businessName,
+            provider_type: p.providerType,
+            specialty_id: p.specialtyId || null,
+            phone: p.phone,
+            email: p.email || null,
+            address: p.address,
+            city: p.city || null,
+            latitude: p.latitude || null,
+            longitude: p.longitude || null,
+            description: p.description || null,
+            avatar_url: p.avatarUrl || null,
+            cover_image_url: p.coverImageUrl || null,
+            website: p.website || null,
+            verification_status: p.verificationStatus,
+            is_emergency: p.isEmergency,
+            is_preloaded: p.isPreloaded,
+            is_claimed: p.isClaimed,
+            accessibility_features: p.accessibilityFeatures || [],
+            home_visit_available: p.homeVisitAvailable,
+            created_at: p.createdAt.toDate().toISOString(),
+            updated_at: p.updatedAt.toDate().toISOString(),
             distance: Math.round((1 + index * 1.5) * 10) / 10,
           }));
         }
@@ -122,28 +171,8 @@ const EmergencyPage = () => {
 
     fetchEmergencyProviders();
 
-    // Set up real-time subscription for updates (only if not offline)
-    if (!OFFLINE_MODE) {
-      const channel = supabase
-        .channel("emergency-providers")
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "providers",
-            filter: "is_emergency=eq.true",
-          },
-          () => {
-            fetchEmergencyProviders();
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
+    // Note: Real-time subscriptions would need to be implemented with Firebase onSnapshot
+    // For now, we just fetch on mount
   }, []);
 
   const filtered = useMemo(() => {
@@ -241,19 +270,63 @@ const EmergencyPage = () => {
           )}
         </div>
 
-        {/* Right: Map Placeholder */}
+        {/* Right: Emergency Services Map */}
         <div className="lg:col-span-2">
           <Card className="glass-card h-[520px]">
             <CardHeader className="py-4">
-              <CardTitle className="text-lg">Emergency map (Google Maps coming soon)</CardTitle>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Ambulance className="h-5 w-5 text-red-500" />
+                Emergency Services Map
+              </CardTitle>
             </CardHeader>
-            <CardContent className="h-full">
-              <div className="w-full h-full rounded-lg bg-gradient-to-br from-muted/50 to-secondary/20 grid place-items-center text-muted-foreground">
-                <div className="text-center">
-                  <Ambulance className="mx-auto mb-2" />
-                  <p>Interactive map placeholder</p>
-                </div>
-              </div>
+            <CardContent className="h-[calc(100%-60px)] p-2">
+              <MapContainer
+                center={[35.1833, -0.6333]} // Sidi Bel Abbès center
+                zoom={13}
+                className="w-full h-full rounded-lg z-0"
+                scrollWheelZoom={true}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+                <MarkerClusterGroup
+                  chunkedLoading
+                  maxClusterRadius={50}
+                  spiderfyOnMaxZoom={true}
+                  showCoverageOnHover={false}
+                >
+                  {filtered
+                    .filter((p) => p.latitude && p.longitude)
+                    .map((provider) => (
+                      <Marker
+                        key={provider.id}
+                        position={[provider.latitude!, provider.longitude!]}
+                        icon={emergencyIcon}
+                      >
+                        <Popup>
+                          <div className="min-w-[200px]">
+                            <h3 className="font-bold text-red-600">{provider.business_name}</h3>
+                            <p className="text-sm text-gray-600 capitalize">{provider.provider_type}</p>
+                            <p className="text-sm mt-1">{provider.address}</p>
+                            <a
+                              href={`tel:${provider.phone}`}
+                              className="inline-flex items-center gap-1 mt-2 text-red-600 font-semibold hover:underline"
+                            >
+                              <PhoneCall className="h-4 w-4" />
+                              {provider.phone}
+                            </a>
+                            <div className="mt-2">
+                              <span className="inline-block px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full">
+                                24/7 Emergency
+                              </span>
+                            </div>
+                          </div>
+                        </Popup>
+                      </Marker>
+                    ))}
+                </MarkerClusterGroup>
+              </MapContainer>
             </CardContent>
           </Card>
 

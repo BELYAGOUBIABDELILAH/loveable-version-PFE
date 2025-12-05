@@ -4,13 +4,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { Tables } from '@/integrations/supabase/types';
+import { getAllProviders } from '@/integrations/firebase/services/providerService';
+import { Provider as FirebaseProvider } from '@/integrations/firebase/types';
 import { useLanguage } from '@/hooks/useLanguage';
 import { OFFLINE_MODE } from '@/config/app';
 import { getProviders } from '@/data/providers';
 
-type Provider = Tables<"providers">;
+type Provider = FirebaseProvider;
 
 interface SmartSuggestionsProps {
   searchQuery?: string;
@@ -65,18 +65,24 @@ export const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
               ratings: [{ rating: p.rating }]
             }));
         } else {
-          // Fetch verified providers with ratings from Supabase
-          const { data, error } = await supabase
-            .from('providers')
-            .select(`
-              *,
-              ratings(rating)
-            `)
-            .eq('verification_status', 'verified')
-            .limit(50);
-
-          if (error) throw error;
-          providers = data || [];
+          // Fetch verified providers from Firebase
+          const firebaseProviders = await getAllProviders();
+          providers = firebaseProviders
+            .filter(p => p.verificationStatus === 'verified')
+            .slice(0, 50)
+            .map(p => ({
+              id: p.id,
+              business_name: p.businessName,
+              description: p.description || '',
+              provider_type: p.providerType,
+              latitude: p.latitude || null,
+              longitude: p.longitude || null,
+              address: p.address,
+              is_emergency: p.isEmergency,
+              accessibility_features: p.accessibilityFeatures || [],
+              verification_status: p.verificationStatus,
+              ratings: []
+            }));
         }
 
         const suggestionsArray: Suggestion[] = [];
@@ -266,7 +272,7 @@ export const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
               >
                 <div className="flex items-start justify-between mb-2">
                   <h4 className="font-semibold text-sm line-clamp-1">
-                    {provider.business_name}
+                    {provider.businessName}
                   </h4>
                   <Badge variant="secondary" className="ml-2 flex items-center gap-1 text-xs">
                     {getReasonIcon(reason)}
@@ -274,7 +280,7 @@ export const SmartSuggestions: React.FC<SmartSuggestionsProps> = ({
                   </Badge>
                 </div>
                 <p className="text-xs text-muted-foreground line-clamp-1 mb-1">
-                  {provider.provider_type}
+                  {provider.providerType}
                 </p>
                 <p className="text-xs text-muted-foreground line-clamp-2">
                   {provider.address}

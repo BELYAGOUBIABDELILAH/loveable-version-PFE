@@ -170,8 +170,7 @@ export const AIAssistantPreview = () => {
                   variant="outline"
                   className="justify-start h-auto p-4 text-left"
                   onClick={() => {
-                    // In real implementation, this would start a conversation
-                    console.log('Starting conversation with:', message.question);
+                    // TODO: Start conversation with AI assistant
                   }}
                 >
                   <MessageCircle className="mr-3" size={16} />

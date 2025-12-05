@@ -7,9 +7,7 @@
 import { describe, test, expect } from 'vitest'
 import * as fc from 'fast-check'
 import { providerArbitrary } from '@/tests/generators'
-import type { Database } from '@/integrations/supabase/types'
-
-type Provider = Database['public']['Tables']['providers']['Row']
+import type { Provider } from '@/integrations/firebase/types'
 
 /**
  * Helper function to filter emergency providers

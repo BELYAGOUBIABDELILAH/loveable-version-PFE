@@ -12,10 +12,13 @@ export {
   getVerifiedProviders,
   getEmergencyProviders,
   searchProviders,
+  getSearchResultCount,
   createProvider,
   updateProvider,
   deleteProvider,
 } from './providerService';
+
+export type { SearchFilters } from './providerService';
 
 // Auth Service
 export {
@@ -29,6 +32,7 @@ export {
   getUserRole,
   updateUserProfile,
   resetPassword,
+  sendVerificationEmailToUser,
 } from './authService';
 
 // Storage Service
@@ -42,3 +46,19 @@ export {
   listFiles,
   validateFile,
 } from './storageService';
+
+// Appointment Service
+export {
+  createAppointment,
+  getAppointmentById,
+  getAppointmentsByUser,
+  getAppointmentsByProvider,
+  updateAppointmentStatus,
+  cancelAppointment,
+} from './appointmentService';
+
+// Account Service
+export {
+  deleteAccount,
+  reauthenticateUser,
+} from './accountService';

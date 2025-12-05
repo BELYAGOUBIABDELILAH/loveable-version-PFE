@@ -12,7 +12,6 @@ import { getAuth, Auth } from 'firebase/auth';
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 
 // Firebase configuration
-// TODO: Replace with your Firebase project credentials
 const firebaseConfig = {
   apiKey: "AIzaSyDo8AhKuuXiH2yC9MhgCZr9TxaouBvEyWU",
   authDomain: "cityhealth-ec7e7.firebaseapp.com",

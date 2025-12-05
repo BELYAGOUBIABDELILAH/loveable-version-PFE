@@ -1,11 +1,15 @@
-import { supabase } from '@/integrations/supabase/client';
-
 /**
- * Admin Logging Service
+ * Admin Logging Service - Firebase Implementation
  * 
+ * Migrated from Supabase to Firebase Firestore
  * Tracks all administrative actions and modifications for audit trail purposes.
  * Logs are immutable once created to maintain integrity.
  */
+
+import { collection, addDoc, Timestamp } from 'firebase/firestore';
+import { db, auth } from '@/integrations/firebase/client';
+import { COLLECTIONS } from '@/integrations/firebase/types';
+import { OFFLINE_MODE } from '@/config/app';
 
 export interface AdminLogEntry {
   admin_id: string;
@@ -21,43 +25,38 @@ export interface AdminLogEntry {
 }
 
 /**
- * Log an admin action to the admin_logs table
+ * Log an admin action to the adminLogs collection
  * 
  * @param logEntry - The log entry containing action details
  * @returns Promise that resolves when log is created
  */
 export async function logAdminAction(logEntry: AdminLogEntry): Promise<void> {
-  try {
-    const { error } = await (supabase as any)
-      .from('admin_logs')
-      .insert({
-        admin_id: logEntry.admin_id,
-        action: logEntry.action,
-        entity_type: logEntry.entity_type,
-        entity_id: logEntry.entity_id,
-        changes: logEntry.changes || null,
-        timestamp: new Date().toISOString(),
-      });
+  if (OFFLINE_MODE) return;
 
-    if (error) {
-      console.error('Error logging admin action:', error);
-      // Don't throw - logging failures shouldn't break the main action
-    }
+  try {
+    const adminLogsRef = collection(db, COLLECTIONS.adminLogs);
+    await addDoc(adminLogsRef, {
+      adminId: logEntry.admin_id,
+      action: logEntry.action,
+      entityType: logEntry.entity_type,
+      entityId: logEntry.entity_id,
+      changes: logEntry.changes || null,
+      createdAt: Timestamp.now(),
+    });
   } catch (error) {
-    console.error('Unexpected error logging admin action:', error);
+    console.error('Error logging admin action:', error);
     // Don't throw - logging failures shouldn't break the main action
   }
 }
 
 /**
- * Get the current admin user ID from Supabase auth
+ * Get the current admin user ID from Firebase auth
  * 
- * @returns Promise that resolves to the admin user ID or null
+ * @returns The admin user ID or null
  */
-export async function getCurrentAdminId(): Promise<string | null> {
+export function getCurrentAdminId(): string | null {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    return user?.id || null;
+    return auth.currentUser?.uid || null;
   } catch (error) {
     console.error('Error getting current admin ID:', error);
     return null;
@@ -68,7 +67,7 @@ export async function getCurrentAdminId(): Promise<string | null> {
  * Log provider verification approval
  */
 export async function logProviderApproval(providerId: string, providerName: string): Promise<void> {
-  const adminId = await getCurrentAdminId();
+  const adminId = getCurrentAdminId();
   if (!adminId) return;
 
   await logAdminAction({
@@ -88,7 +87,7 @@ export async function logProviderApproval(providerId: string, providerName: stri
  * Log provider verification rejection
  */
 export async function logProviderRejection(providerId: string, providerName: string, reason?: string): Promise<void> {
-  const adminId = await getCurrentAdminId();
+  const adminId = getCurrentAdminId();
   if (!adminId) return;
 
   await logAdminAction({
@@ -109,7 +108,7 @@ export async function logProviderRejection(providerId: string, providerName: str
  * Log medical ad approval
  */
 export async function logMedicalAdApproval(adId: string, adTitle: string, providerId: string): Promise<void> {
-  const adminId = await getCurrentAdminId();
+  const adminId = getCurrentAdminId();
   if (!adminId) return;
 
   await logAdminAction({
@@ -130,7 +129,7 @@ export async function logMedicalAdApproval(adId: string, adTitle: string, provid
  * Log medical ad rejection
  */
 export async function logMedicalAdRejection(adId: string, adTitle: string, providerId: string): Promise<void> {
-  const adminId = await getCurrentAdminId();
+  const adminId = getCurrentAdminId();
   if (!adminId) return;
 
   await logAdminAction({
@@ -151,7 +150,7 @@ export async function logMedicalAdRejection(adId: string, adTitle: string, provi
  * Log medical ad deletion
  */
 export async function logMedicalAdDeletion(adId: string, adTitle: string, providerId: string, currentStatus: string): Promise<void> {
-  const adminId = await getCurrentAdminId();
+  const adminId = getCurrentAdminId();
   if (!adminId) return;
 
   await logAdminAction({
@@ -178,7 +177,7 @@ export async function logProfileClaimApproval(
   claimantId: string,
   claimantName: string
 ): Promise<void> {
-  const adminId = await getCurrentAdminId();
+  const adminId = getCurrentAdminId();
   if (!adminId) return;
 
   await logAdminAction({
@@ -208,7 +207,7 @@ export async function logProfileClaimRejection(
   claimantName: string,
   reason?: string
 ): Promise<void> {
-  const adminId = await getCurrentAdminId();
+  const adminId = getCurrentAdminId();
   if (!adminId) return;
 
   await logAdminAction({
@@ -236,7 +235,7 @@ export async function logProviderModification(
   providerName: string,
   changes: { before: any; after: any }
 ): Promise<void> {
-  const adminId = await getCurrentAdminId();
+  const adminId = getCurrentAdminId();
   if (!adminId) return;
 
   await logAdminAction({

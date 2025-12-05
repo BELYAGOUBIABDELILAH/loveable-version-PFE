@@ -32,7 +32,10 @@ import {
   FileText, Trash2, Calendar
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { collection, query, where, orderBy, getDocs, doc, updateDoc, deleteDoc, Timestamp } from 'firebase/firestore';
+import { db } from '@/integrations/firebase/client';
+import { COLLECTIONS } from '@/integrations/firebase/types';
+import { getAllProviders, updateProvider, deleteProvider } from '@/integrations/firebase/services/providerService';
 import BulkImportForm from '@/components/BulkImportForm';
 import {
   logProviderApproval,
@@ -145,10 +148,10 @@ export default function AdminDashboard() {
   ]);
 
   const handleApprove = async (id: string) => {
-    const provider = pendingProviders.find(p => p.id === id);
+    const provider = pendingProviders.find((p: { id: string }) => p.id === id);
     if (!provider) return;
 
-    const updated = pendingProviders.map(p => 
+    const updated = pendingProviders.map((p: { id: string; status: string }) => 
       p.id === id ? { ...p, status: 'approved' } : p
     );
     setPendingProviders(updated);
@@ -164,10 +167,10 @@ export default function AdminDashboard() {
   };
 
   const handleReject = async (id: string) => {
-    const provider = pendingProviders.find(p => p.id === id);
+    const provider = pendingProviders.find((p: { id: string }) => p.id === id);
     if (!provider) return;
 
-    const updated = pendingProviders.map(p => 
+    const updated = pendingProviders.map((p: { id: string; status: string }) => 
       p.id === id ? { ...p, status: 'rejected' } : p
     );
     setPendingProviders(updated);
@@ -188,29 +191,42 @@ export default function AdminDashboard() {
     try {
       setAdsLoading(true);
       
-      const { data: ads, error } = await (supabase as any)
-        .from('medical_ads')
-        .select(`
-          *,
-          provider:providers(
-            id,
-            business_name,
-            provider_type
-          )
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching medical ads:', error);
-        toast({
-          title: "Erreur",
-          description: "Impossible de charger les annonces médicales.",
-          variant: "destructive",
+      // Fetch medical ads from Firestore
+      const adsQuery = query(
+        collection(db, COLLECTIONS.medicalAds),
+        orderBy('createdAt', 'desc')
+      );
+      const adsSnapshot = await getDocs(adsQuery);
+      
+      const ads: MedicalAd[] = [];
+      for (const docSnap of adsSnapshot.docs) {
+        const adData = docSnap.data();
+        // Fetch provider data
+        const providerDoc = await getDocs(query(
+          collection(db, COLLECTIONS.providers),
+          where('__name__', '==', adData.providerId)
+        ));
+        const providerData = providerDoc.docs[0]?.data() || {};
+        
+        ads.push({
+          id: docSnap.id,
+          title: adData.title || '',
+          content: adData.content || '',
+          image_url: adData.imageUrl || null,
+          status: adData.status || 'pending',
+          display_priority: adData.displayPriority || 0,
+          start_date: adData.startDate?.toDate?.()?.toISOString() || new Date().toISOString(),
+          end_date: adData.endDate?.toDate?.()?.toISOString() || null,
+          created_at: adData.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+          provider: {
+            id: adData.providerId || '',
+            business_name: providerData.businessName || 'Unknown',
+            provider_type: providerData.providerType || 'doctor',
+          },
         });
-        return;
       }
 
-      setMedicalAds(ads || []);
+      setMedicalAds(ads);
     } catch (error) {
       console.error('Error fetching medical ads:', error);
       toast({
@@ -238,20 +254,9 @@ export default function AdminDashboard() {
       const ad = medicalAds.find(a => a.id === adId);
       if (!ad) return;
 
-      const { error } = await (supabase as any)
-        .from('medical_ads')
-        .update({ status: 'approved' })
-        .eq('id', adId);
-
-      if (error) {
-        console.error('Error approving ad:', error);
-        toast({
-          title: "Erreur",
-          description: "Impossible d'approuver l'annonce.",
-          variant: "destructive",
-        });
-        return;
-      }
+      // Update in Firestore
+      const adRef = doc(db, COLLECTIONS.medicalAds, adId);
+      await updateDoc(adRef, { status: 'approved' });
 
       // Log the approval action
       await logMedicalAdApproval(adId, ad.title, ad.provider.id);
@@ -287,20 +292,9 @@ export default function AdminDashboard() {
       const ad = medicalAds.find(a => a.id === adId);
       if (!ad) return;
 
-      const { error } = await (supabase as any)
-        .from('medical_ads')
-        .update({ status: 'rejected' })
-        .eq('id', adId);
-
-      if (error) {
-        console.error('Error rejecting ad:', error);
-        toast({
-          title: "Erreur",
-          description: "Impossible de rejeter l'annonce.",
-          variant: "destructive",
-        });
-        return;
-      }
+      // Update in Firestore
+      const adRef = doc(db, COLLECTIONS.medicalAds, adId);
+      await updateDoc(adRef, { status: 'rejected' });
 
       // Log the rejection action
       await logMedicalAdRejection(adId, ad.title, ad.provider.id);
@@ -337,20 +331,9 @@ export default function AdminDashboard() {
       const ad = medicalAds.find(a => a.id === adId);
       if (!ad) return;
 
-      const { error } = await (supabase as any)
-        .from('medical_ads')
-        .delete()
-        .eq('id', adId);
-
-      if (error) {
-        console.error('Error deleting ad:', error);
-        toast({
-          title: "Erreur",
-          description: "Impossible de supprimer l'annonce.",
-          variant: "destructive",
-        });
-        return;
-      }
+      // Delete from Firestore
+      const adRef = doc(db, COLLECTIONS.medicalAds, adId);
+      await deleteDoc(adRef);
 
       // Log the deletion action
       await logMedicalAdDeletion(adId, ad.title, ad.provider.id, ad.status);
@@ -372,7 +355,7 @@ export default function AdminDashboard() {
     }
   };
 
-  const filteredProviders = pendingProviders.filter(p => {
+  const filteredProviders = pendingProviders.filter((p: { providerName: string; email: string; status: string }) => {
     const matchesSearch = p.providerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           p.email.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
@@ -391,44 +374,54 @@ export default function AdminDashboard() {
     try {
       setClaimsLoading(true);
       
-      const { data: claims, error } = await (supabase as any)
-        .from('profile_claims')
-        .select(`
-          *,
-          provider:providers(
-            id,
-            business_name,
-            provider_type,
-            address
-          ),
-          claimant:profiles!profile_claims_user_id_fkey(
-            id,
-            full_name
-          )
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching profile claims:', error);
-        toast({
-          title: "Erreur",
-          description: "Impossible de charger les revendications de profils.",
-          variant: "destructive",
+      // Fetch profile claims from Firestore
+      const claimsQuery = query(
+        collection(db, COLLECTIONS.profileClaims),
+        orderBy('createdAt', 'desc')
+      );
+      const claimsSnapshot = await getDocs(claimsQuery);
+      
+      const claims: ProfileClaim[] = [];
+      for (const docSnap of claimsSnapshot.docs) {
+        const claimData = docSnap.data();
+        
+        // Fetch provider data
+        const providerDoc = await getDocs(query(
+          collection(db, COLLECTIONS.providers),
+          where('__name__', '==', claimData.providerId)
+        ));
+        const providerData = providerDoc.docs[0]?.data() || {};
+        
+        // Fetch claimant profile data
+        const profileDoc = await getDocs(query(
+          collection(db, COLLECTIONS.profiles),
+          where('__name__', '==', claimData.userId)
+        ));
+        const profileData = profileDoc.docs[0]?.data() || {};
+        
+        claims.push({
+          id: docSnap.id,
+          status: claimData.status || 'pending',
+          documentation: claimData.documentation || [],
+          notes: claimData.notes || '',
+          reviewed_by: claimData.reviewedBy || null,
+          reviewed_at: claimData.reviewedAt?.toDate?.()?.toISOString() || null,
+          created_at: claimData.createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+          provider: {
+            id: claimData.providerId || '',
+            business_name: providerData.businessName || 'Unknown',
+            provider_type: providerData.providerType || 'doctor',
+            address: providerData.address || '',
+          },
+          claimant: {
+            id: claimData.userId || '',
+            name: profileData.fullName || 'Utilisateur inconnu',
+            email: 'email@example.com',
+          },
         });
-        return;
       }
 
-      // Transform the data to match our interface
-      const transformedClaims = (claims || []).map((claim: any) => ({
-        ...claim,
-        claimant: {
-          id: claim.claimant?.id || '',
-          name: claim.claimant?.full_name || 'Utilisateur inconnu',
-          email: 'email@example.com', // Simplified for now
-        }
-      }));
-
-      setProfileClaims(transformedClaims);
+      setProfileClaims(claims);
     } catch (error) {
       console.error('Error fetching profile claims:', error);
       toast({
@@ -455,39 +448,25 @@ export default function AdminDashboard() {
       const claim = profileClaims.find(c => c.id === claimId);
       if (!claim) return;
 
-      // Get current admin user ID
-      const { data: { user } } = await supabase.auth.getUser();
-      const adminUserId = user?.id || 'admin-user-id';
+      // Get current admin user ID from Firebase Auth
+      const { auth } = await import('@/integrations/firebase/client');
+      const adminUserId = auth.currentUser?.uid || 'admin-user-id';
 
-      // Update the claim status
-      const { error: claimError } = await (supabase as any)
-        .from('profile_claims')
-        .update({ 
-          status: 'approved',
-          reviewed_by: adminUserId,
-          reviewed_at: new Date().toISOString()
-        })
-        .eq('id', claimId);
+      // Update the claim status in Firestore
+      const claimRef = doc(db, COLLECTIONS.profileClaims, claimId);
+      await updateDoc(claimRef, { 
+        status: 'approved',
+        reviewedBy: adminUserId,
+        reviewedAt: Timestamp.now()
+      });
 
-      if (claimError) {
-        console.error('Error approving claim:', claimError);
-        throw new Error('Erreur lors de l\'approbation de la revendication');
-      }
-
-      // Update the provider profile
-      const { error: providerError } = await (supabase as any)
-        .from('providers')
-        .update({ 
-          user_id: claim.claimant.id,
-          is_claimed: true,
-          is_preloaded: false
-        })
-        .eq('id', claim.provider.id);
-
-      if (providerError) {
-        console.error('Error updating provider:', providerError);
-        throw new Error('Erreur lors de la mise à jour du profil');
-      }
+      // Update the provider profile in Firestore
+      const providerRef = doc(db, COLLECTIONS.providers, claim.provider.id);
+      await updateDoc(providerRef, { 
+        userId: claim.claimant.id,
+        isClaimed: true,
+        isPreloaded: false
+      });
 
       // Log the approval action
       await logProfileClaimApproval(
@@ -526,29 +505,18 @@ export default function AdminDashboard() {
       const claim = profileClaims.find(c => c.id === claimId);
       if (!claim) return;
 
-      // Get current admin user ID
-      const { data: { user } } = await supabase.auth.getUser();
-      const adminUserId = user?.id || 'admin-user-id';
+      // Get current admin user ID from Firebase Auth
+      const { auth } = await import('@/integrations/firebase/client');
+      const adminUserId = auth.currentUser?.uid || 'admin-user-id';
 
-      const { error } = await (supabase as any)
-        .from('profile_claims')
-        .update({ 
-          status: 'rejected',
-          notes: reason || null,
-          reviewed_by: adminUserId,
-          reviewed_at: new Date().toISOString()
-        })
-        .eq('id', claimId);
-
-      if (error) {
-        console.error('Error rejecting claim:', error);
-        toast({
-          title: "Erreur",
-          description: "Impossible de rejeter la revendication.",
-          variant: "destructive",
-        });
-        return;
-      }
+      // Update in Firestore
+      const claimRef = doc(db, COLLECTIONS.profileClaims, claimId);
+      await updateDoc(claimRef, { 
+        status: 'rejected',
+        notes: reason || null,
+        reviewedBy: adminUserId,
+        reviewedAt: Timestamp.now()
+      });
 
       // Log the rejection action
       await logProfileClaimRejection(
@@ -732,7 +700,7 @@ export default function AdminDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredProviders.map((provider) => (
+                    {filteredProviders.map((provider: { id: string; providerName: string; specialty?: string; type: string; email: string; phone: string; submittedAt: string; status: string }) => (
                       <TableRow key={provider.id}>
                         <TableCell>
                           <div>

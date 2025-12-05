@@ -8,7 +8,9 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Upload, Calendar, FileText, Image as ImageIcon, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { collection, query, where, getDocs, addDoc, Timestamp } from 'firebase/firestore';
+import { db } from '@/integrations/firebase/client';
+import { COLLECTIONS } from '@/integrations/firebase/types';
 import { fileUploadService } from '@/services/fileUploadService';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -50,25 +52,21 @@ export default function MedicalAdForm({ onSuccess, trigger }: MedicalAdFormProps
     try {
       setIsLoading(true);
       
-      // Get provider information for current user
-      const { data: provider, error } = await supabase
-        .from('providers')
-        .select('id, verification_status')
-        .eq('user_id', user.id)
-        .single();
+      // Get provider information for current user from Firebase
+      const providersRef = collection(db, COLLECTIONS.providers);
+      const q = query(providersRef, where('userId', '==', user.id));
+      const snapshot = await getDocs(q);
 
-      if (error) {
-        console.error('Error fetching provider:', error);
+      if (snapshot.empty) {
         setIsVerified(false);
         return;
       }
 
-      if (provider) {
-        setProviderId(provider.id);
-        setIsVerified(provider.verification_status === 'verified');
-      } else {
-        setIsVerified(false);
-      }
+      const providerDoc = snapshot.docs[0];
+      const providerData = providerDoc.data();
+      
+      setProviderId(providerDoc.id);
+      setIsVerified(providerData.verificationStatus === 'verified');
     } catch (error) {
       console.error('Error checking verification:', error);
       setIsVerified(false);
@@ -147,21 +145,21 @@ export default function MedicalAdForm({ onSuccess, trigger }: MedicalAdFormProps
         imageUrl = uploadResult.url;
       }
 
-      // Insert medical ad into database
-      const { error } = await (supabase as any)
-        .from('medical_ads')
-        .insert({
-          provider_id: providerId,
+      // Insert medical ad into Firebase
+      try {
+        const medicalAdsRef = collection(db, COLLECTIONS.medicalAds);
+        await addDoc(medicalAdsRef, {
+          providerId: providerId,
           title: formData.title.trim(),
           content: formData.content.trim(),
-          image_url: imageUrl,
-          start_date: formData.start_date,
-          end_date: formData.end_date,
+          imageUrl: imageUrl,
+          startDate: Timestamp.fromDate(new Date(formData.start_date)),
+          endDate: Timestamp.fromDate(new Date(formData.end_date)),
           status: 'pending',
-          display_priority: 0, // Default priority
+          displayPriority: 0, // Default priority
+          createdAt: Timestamp.now()
         });
-
-      if (error) {
+      } catch (error) {
         console.error('Error creating medical ad:', error);
         toast({
           title: "Erreur",

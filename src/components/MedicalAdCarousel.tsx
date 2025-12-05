@@ -3,7 +3,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
+import { db } from '@/integrations/firebase/client';
+import { COLLECTIONS } from '@/integrations/firebase/types';
 import useEmblaCarousel from 'embla-carousel-react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/hooks/useLanguage';
@@ -66,30 +68,41 @@ export default function MedicalAdCarousel({ className = '' }: MedicalAdCarouselP
         return;
       }
 
-      const { data: ads, error: adsError } = await (supabase as any)
-        .from('medical_ads')
-        .select(`
-          *,
-          provider:providers(
-            id,
-            business_name,
-            provider_type,
-            avatar_url
-          )
-        `)
-        .eq('status', 'approved')
-        .gte('end_date', new Date().toISOString().split('T')[0])
-        .order('display_priority', { ascending: false })
-        .order('created_at', { ascending: false });
-
-      if (adsError) {
-        console.error('Error fetching medical ads:', adsError);
-        // Fallback to empty array instead of showing error
-        setMedicalAds([]);
-        return;
+      // Fetch from Firebase
+      const adsRef = collection(db, COLLECTIONS.medicalAds);
+      const q = query(
+        adsRef,
+        where('status', '==', 'approved'),
+        orderBy('displayPriority', 'desc'),
+        orderBy('createdAt', 'desc')
+      );
+      
+      const snapshot = await getDocs(q);
+      const today = new Date();
+      
+      const ads: MedicalAd[] = [];
+      for (const docSnap of snapshot.docs) {
+        const data = docSnap.data();
+        const endDate = data.endDate?.toDate ? data.endDate.toDate() : new Date(data.endDate);
+        
+        // Filter by end date
+        if (endDate >= today) {
+          ads.push({
+            id: docSnap.id,
+            provider_id: data.providerId,
+            title: data.title,
+            content: data.content,
+            image_url: data.imageUrl || null,
+            display_priority: data.displayPriority || 0,
+            start_date: data.startDate?.toDate ? data.startDate.toDate().toISOString() : data.startDate,
+            end_date: endDate.toISOString(),
+            created_at: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : data.createdAt,
+            provider: undefined // Provider data would need separate fetch
+          });
+        }
       }
 
-      setMedicalAds(ads || []);
+      setMedicalAds(ads);
     } catch (error) {
       console.error('Error in fetchApprovedAds:', error);
       // Fallback silencieux en cas d'erreur réseau

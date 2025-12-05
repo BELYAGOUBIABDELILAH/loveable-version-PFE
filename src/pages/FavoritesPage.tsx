@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Heart, MapPin, Phone, Star, Clock, Calendar, Trash2, Search, Filter } from 'lucide-react';
+import { Heart, MapPin, Phone, Clock, Calendar, Trash2, Search, Filter } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -13,10 +13,15 @@ import SkeletonCard from '@/components/SkeletonCard';
 import { favoritesService, type FavoriteWithProvider } from '@/services/favoritesService';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { AuthModal } from '@/components/AuthModal';
+import { BookingModal } from '@/components/BookingModal';
 
 const FavoritesPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState<{ id: string; name: string } | null>(null);
   
   const { isAuthenticated } = useAuth();
   const headerRef = useScrollReveal();
@@ -96,7 +101,7 @@ const FavoritesPage = () => {
 
       // Optimistically update to the new value
       queryClient.setQueryData<FavoriteWithProvider[]>(['favorites'], (old) =>
-        old?.filter(fav => fav.provider_id !== providerId) || []
+        old?.filter(fav => fav.providerId !== providerId) || []
       );
 
       // Return a context object with the snapshotted value
@@ -115,11 +120,11 @@ const FavoritesPage = () => {
     },
     onSuccess: (_, providerId) => {
       // Find the provider name for the toast
-      const provider = favorites.find(fav => fav.provider_id === providerId)?.provider;
+      const provider = favorites.find(fav => fav.providerId === providerId)?.provider;
       addToast({
         type: 'success',
         title: 'Favori supprimé',
-        message: `${provider?.business_name || 'Le prestataire'} a été retiré de vos favoris`
+        message: `${provider?.businessName || 'Le prestataire'} a été retiré de vos favoris`
       });
     },
     onSettled: () => {
@@ -132,12 +137,9 @@ const FavoritesPage = () => {
     removeFavoriteMutation.mutate(providerId);
   };
 
-  const handleBookAppointment = (provider: any) => {
-    addToast({
-      type: 'info',
-      title: 'Rendez-vous',
-      message: `Redirection vers la prise de rendez-vous avec ${provider.business_name}`
-    });
+  const handleBookAppointment = (provider: { id: string; businessName: string }) => {
+    setSelectedProvider({ id: provider.id, name: provider.businessName });
+    setShowBookingModal(true);
   };
 
   const handleCall = (provider: any) => {
@@ -153,9 +155,9 @@ const FavoritesPage = () => {
   const filteredFavorites = favorites.filter(favorite => {
     const provider = favorite.provider;
     const matchesSearch = !searchQuery || 
-      provider.business_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (provider.specialty_id && provider.specialty_id.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesCategory = !selectedCategory || selectedCategory === 'Tous' || provider.provider_type === selectedCategory;
+      provider.businessName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (provider.specialtyId && provider.specialtyId.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesCategory = !selectedCategory || selectedCategory === 'Tous' || provider.providerType === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
@@ -169,11 +171,16 @@ const FavoritesPage = () => {
             <p className="text-muted-foreground mb-6">
               Vous devez être connecté pour voir vos prestataires favoris.
             </p>
-            <Button className="w-full">
+            <Button className="w-full" onClick={() => setShowAuthModal(true)}>
               Se connecter
             </Button>
           </CardContent>
         </Card>
+        <AuthModal 
+          open={showAuthModal} 
+          onOpenChange={setShowAuthModal}
+          defaultTab="login"
+        />
       </div>
     );
   }
@@ -303,15 +310,15 @@ const FavoritesPage = () => {
                             className="hover:text-primary transition-colors"
                           >
                             <h3 className="font-semibold text-lg line-clamp-1 hover:text-primary">
-                              {provider.business_name}
+                              {provider.businessName}
                             </h3>
                           </Link>
-                          {provider.verification_status === 'verified' && (
+                          {provider.verificationStatus === 'verified' && (
                             <Badge variant="secondary" className="text-xs">✓ Vérifié</Badge>
                           )}
                         </div>
                         <p className="text-muted-foreground text-sm capitalize">
-                          {getCategoryDisplayName(provider.provider_type)}
+                          {getCategoryDisplayName(provider.providerType)}
                         </p>
                       </div>
                       <Button
@@ -336,7 +343,7 @@ const FavoritesPage = () => {
                         <span className="text-sm">{provider.phone}</span>
                       </div>
                       
-                      {provider.is_emergency && (
+                      {provider.isEmergency && (
                         <div className="flex items-center gap-2">
                           <Clock size={16} className="text-green-600 flex-shrink-0" />
                           <span className="text-sm text-green-600">Service d'urgence 24h/24</span>
@@ -348,7 +355,7 @@ const FavoritesPage = () => {
                       <Button 
                         size="sm" 
                         className="flex-1"
-                        onClick={() => handleBookAppointment(provider)}
+                        onClick={() => handleBookAppointment({ id: provider.id, businessName: provider.businessName })}
                       >
                         <Calendar className="mr-1" size={14} />
                         RDV
@@ -366,7 +373,7 @@ const FavoritesPage = () => {
                     
                     <div className="mt-3 pt-3 border-t border-border/50">
                       <p className="text-xs text-muted-foreground">
-                        Ajouté le {new Date(favorite.created_at).toLocaleDateString('fr-FR')}
+                        Ajouté le {favorite.createdAt?.toDate ? new Date(favorite.createdAt.toDate()).toLocaleDateString('fr-FR') : 'Date inconnue'}
                       </p>
                     </div>
                   </CardContent>
@@ -376,6 +383,16 @@ const FavoritesPage = () => {
           </div>
         )}
       </div>
+
+      {/* Booking Modal */}
+      {selectedProvider && (
+        <BookingModal
+          open={showBookingModal}
+          onOpenChange={setShowBookingModal}
+          providerName={selectedProvider.name}
+          providerId={selectedProvider.id}
+        />
+      )}
     </div>
   );
 };

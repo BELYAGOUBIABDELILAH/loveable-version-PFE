@@ -7,7 +7,9 @@ import { Provider, ViewMode } from '@/pages/SearchPage';
 import { Link } from 'react-router-dom';
 import { FavoriteButton } from '@/components/FavoriteButton';
 import { ProfileClaimForm } from '@/components/ProfileClaimForm';
-import { supabase } from '@/integrations/supabase/client';
+import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { db } from '@/integrations/firebase/client';
+import { COLLECTIONS } from '@/integrations/firebase/types';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface SearchResultsProps {
@@ -83,25 +85,37 @@ export const SearchResults = ({ providers, viewMode, searchQuery }: SearchResult
   // Fetch approved medical ads for inline display
   const fetchInlineAds = async () => {
     try {
-      const { data: ads, error } = await (supabase as any)
-        .from('medical_ads')
-        .select(`
-          *,
-          provider:providers(
-            id,
-            business_name,
-            provider_type,
-            avatar_url
-          )
-        `)
-        .eq('status', 'approved')
-        .gte('end_date', new Date().toISOString().split('T')[0])
-        .order('display_priority', { ascending: false })
-        .limit(5); // Limit to 5 ads for inline display
-
-      if (!error && ads) {
-        setMedicalAds(ads);
+      const adsRef = collection(db, COLLECTIONS.medicalAds);
+      const q = query(
+        adsRef,
+        where('status', '==', 'approved'),
+        orderBy('displayPriority', 'desc')
+      );
+      
+      const snapshot = await getDocs(q);
+      const today = new Date();
+      
+      const ads: MedicalAd[] = [];
+      for (const docSnap of snapshot.docs) {
+        if (ads.length >= 5) break; // Limit to 5 ads
+        
+        const data = docSnap.data();
+        const endDate = data.endDate?.toDate ? data.endDate.toDate() : new Date(data.endDate);
+        
+        // Filter by end date
+        if (endDate >= today) {
+          ads.push({
+            id: docSnap.id,
+            provider_id: data.providerId,
+            title: data.title,
+            content: data.content,
+            image_url: data.imageUrl || null,
+            provider: undefined // Provider data would need separate fetch
+          });
+        }
       }
+
+      setMedicalAds(ads);
     } catch (error) {
       console.error('Error fetching inline ads:', error);
     }

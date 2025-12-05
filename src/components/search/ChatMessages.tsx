@@ -13,7 +13,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ activeChat }) => {
   return (
     <div className="flex-1 overflow-y-auto p-4">
       <AnimatedTransition
-        show={activeChat?.messages.length === 0}
+        show={!activeChat?.messages?.length}
         animation="fade"
         className="h-full flex items-center justify-center"
       >
@@ -26,11 +26,11 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ activeChat }) => {
       </AnimatedTransition>
       
       <AnimatedTransition
-        show={activeChat?.messages.length > 0}
+        show={Boolean(activeChat?.messages?.length)}
         animation="fade"
         className="space-y-4"
       >
-        {activeChat?.messages.map((message: ChatMessage) => (
+        {activeChat?.messages?.map((message: ChatMessage) => (
           <div 
             key={message.id}
             className={cn(
@@ -62,7 +62,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({ activeChat }) => {
           </div>
         ))}
         
-        {activeChat?.messages.length > 0 && activeChat.messages[activeChat.messages.length - 1].type === 'assistant' && (
+        {activeChat?.messages?.length && activeChat.messages[activeChat.messages.length - 1].type === 'assistant' && (
           <div className="p-4 glass-panel rounded-xl space-y-2">
             <h3 className="text-sm font-medium text-muted-foreground">Suggested Results</h3>
             <div className="space-y-3">

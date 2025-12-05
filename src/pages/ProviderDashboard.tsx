@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,12 +11,18 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { 
   Eye, Phone, MapPin, TrendingUp, Calendar, Star, 
-  Upload, Settings, BarChart3, Users, Clock, Car, Building, ShieldCheck, Hand, Home, FileText, Plus, Accessibility
+  Upload, Settings, BarChart3, Users, Clock, Car, Building, ShieldCheck, Hand, Home, FileText, Plus, Accessibility, Loader2, X, Image as ImageIcon, Check, User
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { ACCESSIBILITY_FEATURES } from '@/data/providers';
 import MedicalAdForm from '@/components/MedicalAdForm';
-import { supabase } from '@/integrations/supabase/client';
+import { collection, query, where, getDocs, doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { db, auth } from '@/integrations/firebase/client';
+import { COLLECTIONS, Provider, Appointment } from '@/integrations/firebase/types';
+import { updateProvider, getProviderById } from '@/integrations/firebase/services/providerService';
+import { uploadMultipleFiles, validateFile } from '@/integrations/firebase/services/storageService';
+import { getAppointmentsByProvider, updateAppointmentStatus, cancelAppointment } from '@/integrations/firebase/services/appointmentService';
+import { OFFLINE_MODE } from '@/config/app';
 
 const getAccessibilityIcon = (feature: string) => {
   switch (feature) {
@@ -62,6 +68,13 @@ const getAccessibilityLabel = (feature: string) => {
 
 export default function ProviderDashboard() {
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
+  const [providerId, setProviderId] = useState<string | null>(null);
+  
   const [stats, setStats] = useState({
     profileViews: 1247,
     phoneClicks: 89,
@@ -74,11 +87,16 @@ export default function ProviderDashboard() {
     name: 'Dr. Ahmed Benali',
     specialty: 'Cardiologie',
     phone: '+213 48 50 10 20',
+    email: '',
     address: '15 Rue principale, Centre Ville',
+    city: 'Sidi Bel Abbès',
     description: 'Cardiologue expérimenté avec plus de 15 ans de pratique. Spécialisé dans les maladies cardiovasculaires et la prévention.',
     schedule: 'Lun-Ven: 9h-17h\nSam: 9h-13h',
     accessibility_features: ['wheelchair', 'parking'] as string[],
     home_visit_available: true,
+    photos: [] as string[],
+    avatar_url: '',
+    website: '',
   });
 
   const [recentActivity] = useState([
@@ -89,13 +107,227 @@ export default function ProviderDashboard() {
 
   const [medicalAds, setMedicalAds] = useState<any[]>([]);
   const [isLoadingAds, setIsLoadingAds] = useState(false);
+  
+  // Appointments state
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
+  const [updatingAppointmentId, setUpdatingAppointmentId] = useState<string | null>(null);
 
-  const handleProfileUpdate = (e: React.FormEvent) => {
+  // Fetch provider data from Firebase on mount
+  useEffect(() => {
+    const fetchProviderData = async () => {
+      if (OFFLINE_MODE) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        const currentUser = auth.currentUser;
+        
+        if (!currentUser) {
+          setIsLoading(false);
+          return;
+        }
+
+        // Get provider by user ID
+        const providersRef = collection(db, COLLECTIONS.providers);
+        const providerQuery = query(providersRef, where('userId', '==', currentUser.uid));
+        const providerSnapshot = await getDocs(providerQuery);
+
+        if (!providerSnapshot.empty) {
+          const providerDoc = providerSnapshot.docs[0];
+          const providerData = providerDoc.data();
+          setProviderId(providerDoc.id);
+          
+          setProfile({
+            name: providerData.businessName || '',
+            specialty: providerData.specialtyId || '',
+            phone: providerData.phone || '',
+            email: providerData.email || '',
+            address: providerData.address || '',
+            city: providerData.city || '',
+            description: providerData.description || '',
+            schedule: '',
+            accessibility_features: providerData.accessibilityFeatures || [],
+            home_visit_available: providerData.homeVisitAvailable || false,
+            photos: providerData.photos || [],
+            avatar_url: providerData.avatarUrl || '',
+            website: providerData.website || '',
+          });
+        }
+      } catch (error) {
+        console.error('Error fetching provider data:', error);
+        toast({
+          title: "Erreur",
+          description: "Impossible de charger les données du profil.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProviderData();
+  }, [toast]);
+
+  const handleProfileUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast({
-      title: "Profil mis à jour",
-      description: "Vos modifications ont été enregistrées avec succès.",
-    });
+    
+    if (OFFLINE_MODE) {
+      toast({
+        title: "Profil mis à jour",
+        description: "Vos modifications ont été enregistrées avec succès.",
+      });
+      return;
+    }
+
+    if (!providerId) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de trouver votre profil.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      
+      await updateProvider(providerId, {
+        businessName: profile.name,
+        phone: profile.phone,
+        email: profile.email || undefined,
+        address: profile.address,
+        city: profile.city || undefined,
+        description: profile.description || undefined,
+        accessibilityFeatures: profile.accessibility_features,
+        homeVisitAvailable: profile.home_visit_available,
+        website: profile.website || undefined,
+      });
+
+      toast({
+        title: "Profil mis à jour",
+        description: "Vos modifications ont été enregistrées avec succès.",
+      });
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de sauvegarder les modifications.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Handle photo upload via Firebase Storage
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    if (OFFLINE_MODE) {
+      toast({
+        title: "Mode hors ligne",
+        description: "L'upload de photos n'est pas disponible en mode hors ligne.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!providerId) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de trouver votre profil.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validate all files
+    const fileArray = Array.from(files);
+    for (const file of fileArray) {
+      const validation = validateFile(file, {
+        maxSizeMB: 5,
+        allowedTypes: ['image/jpeg', 'image/png', 'image/webp'],
+      });
+      
+      if (!validation.valid) {
+        toast({
+          title: "Fichier invalide",
+          description: validation.error,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
+    try {
+      setIsUploadingPhotos(true);
+      
+      // Upload all files
+      const uploadResults = await uploadMultipleFiles(fileArray, providerId, 'photo');
+      const newPhotoUrls = uploadResults.map(result => result.url);
+      
+      // Update provider with new photos
+      const updatedPhotos = [...profile.photos, ...newPhotoUrls];
+      await updateProvider(providerId, {
+        photos: updatedPhotos,
+      });
+
+      setProfile(prev => ({
+        ...prev,
+        photos: updatedPhotos,
+      }));
+
+      toast({
+        title: "Photos ajoutées",
+        description: `${fileArray.length} photo(s) ajoutée(s) avec succès.`,
+      });
+    } catch (error) {
+      console.error('Error uploading photos:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible d'uploader les photos.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingPhotos(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // Remove a photo from the gallery
+  const handleRemovePhoto = async (photoUrl: string) => {
+    if (OFFLINE_MODE || !providerId) return;
+
+    try {
+      const updatedPhotos = profile.photos.filter(url => url !== photoUrl);
+      await updateProvider(providerId, {
+        photos: updatedPhotos,
+      });
+
+      setProfile(prev => ({
+        ...prev,
+        photos: updatedPhotos,
+      }));
+
+      toast({
+        title: "Photo supprimée",
+        description: "La photo a été supprimée avec succès.",
+      });
+    } catch (error) {
+      console.error('Error removing photo:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer la photo.",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleAccessibilityFeatureChange = (feature: string, checked: boolean) => {
@@ -114,38 +346,156 @@ export default function ProviderDashboard() {
     }));
   };
 
+  // Fetch appointments for this provider
+  const fetchAppointments = async () => {
+    if (OFFLINE_MODE || !providerId) return;
+    
+    try {
+      setIsLoadingAppointments(true);
+      const providerAppointments = await getAppointmentsByProvider(providerId);
+      setAppointments(providerAppointments);
+    } catch (error) {
+      console.error('Error fetching appointments:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les rendez-vous.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingAppointments(false);
+    }
+  };
+
+  // Handle appointment confirmation
+  const handleConfirmAppointment = async (appointmentId: string) => {
+    try {
+      setUpdatingAppointmentId(appointmentId);
+      await updateAppointmentStatus(appointmentId, 'confirmed');
+      
+      // Update local state
+      setAppointments(prev => 
+        prev.map(a => a.id === appointmentId ? { ...a, status: 'confirmed' } : a)
+      );
+      
+      toast({
+        title: "Rendez-vous confirmé",
+        description: "Le rendez-vous a été confirmé avec succès.",
+      });
+    } catch (error) {
+      console.error('Error confirming appointment:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible de confirmer le rendez-vous.",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingAppointmentId(null);
+    }
+  };
+
+  // Handle appointment cancellation
+  const handleCancelAppointment = async (appointmentId: string) => {
+    try {
+      setUpdatingAppointmentId(appointmentId);
+      await cancelAppointment(appointmentId);
+      
+      // Update local state
+      setAppointments(prev => 
+        prev.map(a => a.id === appointmentId ? { ...a, status: 'cancelled' } : a)
+      );
+      
+      toast({
+        title: "Rendez-vous annulé",
+        description: "Le rendez-vous a été annulé avec succès.",
+      });
+    } catch (error) {
+      console.error('Error cancelling appointment:', error);
+      toast({
+        title: "Erreur",
+        description: "Impossible d'annuler le rendez-vous.",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingAppointmentId(null);
+    }
+  };
+
+  // Get appointment status badge variant
+  const getAppointmentStatusBadgeVariant = (status: string) => {
+    switch (status) {
+      case 'confirmed':
+        return 'default';
+      case 'pending':
+        return 'secondary';
+      case 'cancelled':
+        return 'destructive';
+      case 'completed':
+        return 'outline';
+      default:
+        return 'secondary';
+    }
+  };
+
+  // Get appointment status label in French
+  const getAppointmentStatusLabel = (status: string) => {
+    switch (status) {
+      case 'confirmed':
+        return 'Confirmé';
+      case 'pending':
+        return 'En attente';
+      case 'cancelled':
+        return 'Annulé';
+      case 'completed':
+        return 'Terminé';
+      default:
+        return status;
+    }
+  };
+
   const fetchMedicalAds = async () => {
     try {
       setIsLoadingAds(true);
       
-      // Mock user ID for now - in real implementation, get from auth context
-      const mockUserId = 'mock-user-id';
+      // Get current user from Firebase Auth
+      const { auth } = await import('@/integrations/firebase/client');
+      const { db } = await import('@/integrations/firebase/client');
+      const { collection, query, where, getDocs, orderBy } = await import('firebase/firestore');
+      const { COLLECTIONS } = await import('@/integrations/firebase/types');
       
-      // Get provider ID first
-      const { data: provider, error: providerError } = await supabase
-        .from('providers')
-        .select('id')
-        .eq('user_id', mockUserId)
-        .single();
-
-      if (providerError || !provider) {
-        console.error('Error fetching provider:', providerError);
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        console.error('No authenticated user');
         return;
       }
+
+      // Get provider ID first
+      const providersRef = collection(db, COLLECTIONS.providers);
+      const providerQuery = query(providersRef, where('userId', '==', currentUser.uid));
+      const providerSnapshot = await getDocs(providerQuery);
+
+      if (providerSnapshot.empty) {
+        console.error('No provider found for user');
+        return;
+      }
+
+      const providerId = providerSnapshot.docs[0].id;
 
       // Fetch medical ads for this provider
-      const { data: ads, error: adsError } = await (supabase as any)
-        .from('medical_ads')
-        .select('*')
-        .eq('provider_id', provider.id)
-        .order('created_at', { ascending: false });
+      const adsRef = collection(db, COLLECTIONS.medicalAds);
+      const adsQuery = query(
+        adsRef, 
+        where('providerId', '==', providerId),
+        orderBy('createdAt', 'desc')
+      );
+      const adsSnapshot = await getDocs(adsQuery);
 
-      if (adsError) {
-        console.error('Error fetching medical ads:', adsError);
-        return;
-      }
+      const ads = adsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        created_at: doc.data().createdAt?.toDate?.()?.toISOString() || new Date().toISOString(),
+      }));
 
-      setMedicalAds(ads || []);
+      setMedicalAds(ads);
     } catch (error) {
       console.error('Error in fetchMedicalAds:', error);
     } finally {
@@ -189,6 +539,24 @@ export default function ProviderDashboard() {
     fetchMedicalAds();
   }, []);
 
+  // Fetch appointments when providerId is available
+  useEffect(() => {
+    if (providerId) {
+      fetchAppointments();
+    }
+  }, [providerId]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 py-8 px-4 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-muted-foreground">Chargement du tableau de bord...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 py-8 px-4">
       <div className="max-w-7xl mx-auto">
@@ -197,8 +565,8 @@ export default function ProviderDashboard() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Avatar className="h-16 w-16">
-                <AvatarImage src="/placeholder.svg" />
-                <AvatarFallback>AB</AvatarFallback>
+                <AvatarImage src={profile.avatar_url || "/placeholder.svg"} />
+                <AvatarFallback>{profile.name.substring(0, 2).toUpperCase()}</AvatarFallback>
               </Avatar>
               <div>
                 <h1 className="text-3xl font-bold">{profile.name}</h1>
@@ -303,8 +671,9 @@ export default function ProviderDashboard() {
 
         {/* Main Content */}
         <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="profile">Mon Profil</TabsTrigger>
+            <TabsTrigger value="appointments">Rendez-vous</TabsTrigger>
             <TabsTrigger value="analytics">Statistiques</TabsTrigger>
             <TabsTrigger value="reviews">Avis ({stats.reviewsCount})</TabsTrigger>
             <TabsTrigger value="ads">Mes Annonces</TabsTrigger>
@@ -423,25 +792,196 @@ export default function ProviderDashboard() {
 
                   <div>
                     <Label>Photos du cabinet</Label>
-                    <div className="mt-2 border-2 border-dashed rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer">
-                      <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                    
+                    {/* Existing photos gallery */}
+                    {profile.photos.length > 0 && (
+                      <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                        {profile.photos.map((photoUrl, index) => (
+                          <div key={index} className="relative group aspect-video rounded-lg overflow-hidden bg-muted">
+                            <img 
+                              src={photoUrl} 
+                              alt={`Photo ${index + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePhoto(photoUrl)}
+                              className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                    {/* Upload area */}
+                    <div 
+                      className="mt-2 border-2 border-dashed rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      {isUploadingPhotos ? (
+                        <>
+                          <Loader2 className="h-8 w-8 mx-auto mb-2 text-muted-foreground animate-spin" />
+                          <p className="text-sm text-muted-foreground">Upload en cours...</p>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                          <p className="text-sm text-muted-foreground">
+                            Cliquez pour ajouter des photos
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            JPG, PNG ou WebP (max 5MB)
+                          </p>
+                        </>
+                      )}
                       <Input
+                        ref={fileInputRef}
                         type="file"
-                        accept="image/*"
+                        accept="image/jpeg,image/png,image/webp"
                         multiple
                         className="hidden"
                         id="photos"
+                        onChange={handlePhotoUpload}
+                        disabled={isUploadingPhotos}
                       />
-                      <Label htmlFor="photos" className="cursor-pointer">
-                        Cliquez pour ajouter des photos
-                      </Label>
                     </div>
                   </div>
 
-                  <Button type="submit" className="w-full">
-                    Enregistrer les modifications
+                  <Button type="submit" className="w-full" disabled={isSaving}>
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Enregistrement...
+                      </>
+                    ) : (
+                      'Enregistrer les modifications'
+                    )}
                   </Button>
                 </form>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Appointments Tab */}
+          <TabsContent value="appointments">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Rendez-vous
+                </CardTitle>
+                <CardDescription>
+                  Gérez les rendez-vous de vos patients
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoadingAppointments ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : appointments.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-medium mb-2">Aucun rendez-vous</h3>
+                    <p className="text-muted-foreground">
+                      Vous n'avez pas encore de rendez-vous programmés.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {appointments.map((appointment) => {
+                      const appointmentDate = appointment.datetime?.toDate?.() || new Date();
+                      const isPending = appointment.status === 'pending';
+                      const isUpdating = updatingAppointmentId === appointment.id;
+                      
+                      return (
+                        <div key={appointment.id} className="border rounded-lg p-4">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-10 w-10">
+                                <AvatarFallback>
+                                  <User className="h-5 w-5" />
+                                </AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <h3 className="font-medium">
+                                  {appointment.contactInfo?.name || 'Patient'}
+                                </h3>
+                                <p className="text-sm text-muted-foreground">
+                                  {appointment.contactInfo?.phone}
+                                </p>
+                                {appointment.contactInfo?.email && (
+                                  <p className="text-sm text-muted-foreground">
+                                    {appointment.contactInfo.email}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <Badge variant={getAppointmentStatusBadgeVariant(appointment.status)}>
+                              {getAppointmentStatusLabel(appointment.status)}
+                            </Badge>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
+                            <Clock className="h-4 w-4" />
+                            <span>
+                              {appointmentDate.toLocaleDateString('fr-FR', {
+                                weekday: 'long',
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric',
+                              })}
+                              {' à '}
+                              {appointmentDate.toLocaleTimeString('fr-FR', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                          </div>
+                          
+                          {appointment.notes && (
+                            <p className="text-sm text-muted-foreground mb-3 italic bg-muted p-2 rounded">
+                              Note: {appointment.notes}
+                            </p>
+                          )}
+                          
+                          {isPending && (
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="default"
+                                size="sm"
+                                onClick={() => handleConfirmAppointment(appointment.id)}
+                                disabled={isUpdating}
+                              >
+                                {isUpdating ? (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Check className="mr-2 h-4 w-4" />
+                                )}
+                                Confirmer
+                              </Button>
+                              <Button
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => handleCancelAppointment(appointment.id)}
+                                disabled={isUpdating}
+                              >
+                                {isUpdating ? (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <X className="mr-2 h-4 w-4" />
+                                )}
+                                Annuler
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

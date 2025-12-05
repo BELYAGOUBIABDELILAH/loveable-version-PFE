@@ -170,7 +170,7 @@ describe('Chatbot Properties', () => {
           // Send message to chatbot
           await mockStreamChat({
             messages: [{ role: 'user', content: messageContent }],
-            onDelta: (chunk) => {
+            onDelta: (chunk: string) => {
               fullResponse += chunk
             },
             onDone: () => {},
@@ -208,7 +208,7 @@ describe('Chatbot Properties', () => {
             // Send unanswerable query to chatbot
             await mockStreamChat({
               messages: [{ role: 'user', content: query }],
-              onDelta: (chunk) => {
+              onDelta: (chunk: string) => {
                 fullResponse += chunk
               },
               onDone: () => {},

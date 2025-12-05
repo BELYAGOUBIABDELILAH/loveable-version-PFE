@@ -203,48 +203,146 @@ export async function getEmergencyProviders(): Promise<Provider[]> {
 }
 
 /**
- * Search providers
+ * Multilingual search term mappings
+ * Maps equivalent terms across Arabic, French, and English
+ */
+const MULTILINGUAL_TERMS: Record<string, string[]> = {
+  // Provider types
+  'doctor': ['doctor', 'médecin', 'طبيب', 'docteur', 'dr'],
+  'clinic': ['clinic', 'clinique', 'عيادة', 'cabinet'],
+  'hospital': ['hospital', 'hôpital', 'مستشفى', 'hopital'],
+  'pharmacy': ['pharmacy', 'pharmacie', 'صيدلية'],
+  'laboratory': ['laboratory', 'laboratoire', 'مختبر', 'lab', 'labo'],
+  // Specialties
+  'cardiology': ['cardiology', 'cardiologie', 'قلب', 'cardiologue', 'cardiologist'],
+  'dermatology': ['dermatology', 'dermatologie', 'جلدية', 'dermatologue', 'dermatologist'],
+  'pediatrics': ['pediatrics', 'pédiatrie', 'أطفال', 'pédiatre', 'pediatrician'],
+  'gynecology': ['gynecology', 'gynécologie', 'نسائية', 'gynécologue', 'gynecologist'],
+  'ophthalmology': ['ophthalmology', 'ophtalmologie', 'عيون', 'ophtalmologue', 'ophthalmologist'],
+  'dentistry': ['dentistry', 'dentisterie', 'أسنان', 'dentiste', 'dentist'],
+  'radiology': ['radiology', 'radiologie', 'أشعة', 'radiologue', 'radiologist'],
+  'general': ['general', 'générale', 'عام', 'généraliste', 'general practitioner'],
+  // Common terms
+  'emergency': ['emergency', 'urgence', 'طوارئ', 'urgences'],
+  'accessible': ['accessible', 'accessibilité', 'إمكانية الوصول', 'wheelchair'],
+};
+
+/**
+ * Normalize search query for multilingual matching
+ * Expands the query to include equivalent terms in other languages
+ */
+function normalizeSearchQuery(query: string): string[] {
+  const lowerQuery = query.toLowerCase().trim();
+  const terms: Set<string> = new Set([lowerQuery]);
+  
+  // Find equivalent terms in other languages
+  for (const [, equivalents] of Object.entries(MULTILINGUAL_TERMS)) {
+    if (equivalents.some(term => lowerQuery.includes(term) || term.includes(lowerQuery))) {
+      equivalents.forEach(term => terms.add(term));
+    }
+  }
+  
+  return Array.from(terms);
+}
+
+/**
+ * Check if a provider matches a search query (multilingual)
+ */
+function matchesSearchQuery(provider: Provider, searchTerms: string[]): boolean {
+  const searchableText = [
+    provider.businessName,
+    provider.address,
+    provider.description,
+    provider.city,
+    provider.providerType,
+  ].filter(Boolean).join(' ').toLowerCase();
+  
+  return searchTerms.some(term => searchableText.includes(term));
+}
+
+/**
+ * Search filter parameters interface
+ */
+export interface SearchFilters {
+  type?: string;
+  providerTypes?: string[];
+  verificationStatus?: VerificationStatus;
+  isEmergency?: boolean;
+  accessibilityFeatures?: string[];
+  homeVisitAvailable?: boolean;
+  city?: string;
+}
+
+/**
+ * Search providers with multilingual support
  * Supabase: SELECT * FROM providers WHERE ... (complex query)
  * Firebase: Client-side filtering (Firestore has limited text search)
+ * 
+ * Supports:
+ * - Multilingual search (AR/FR/EN)
+ * - Filter by provider_type, accessibility_features, home_visit_available
+ * - AND logic for multiple filters
+ * 
+ * Requirements: 1.1, 1.2, 2.2, 2.3
  */
 export async function searchProviders(
   searchQuery: string,
-  filters?: {
-    type?: string;
-    verificationStatus?: VerificationStatus;
-    isEmergency?: boolean;
-    accessibilityFeatures?: string[];
-    homeVisitAvailable?: boolean;
-  }
+  filters?: SearchFilters
 ): Promise<Provider[]> {
   if (OFFLINE_MODE) {
     let results = getMockProviders();
     
-    // Apply search query
-    if (searchQuery) {
-      const lowerQuery = searchQuery.toLowerCase();
-      results = results.filter(p =>
-        p.name.toLowerCase().includes(lowerQuery) ||
-        p.specialty?.toLowerCase().includes(lowerQuery) ||
-        p.address.toLowerCase().includes(lowerQuery)
-      );
+    // Normalize search query for multilingual support
+    const searchTerms = searchQuery ? normalizeSearchQuery(searchQuery) : [];
+    
+    // Apply search query with multilingual matching
+    if (searchTerms.length > 0) {
+      results = results.filter(p => {
+        const searchableText = [
+          p.name,
+          p.address,
+          p.description,
+          p.city,
+          p.type,
+          p.specialty,
+        ].filter(Boolean).join(' ').toLowerCase();
+        
+        return searchTerms.some(term => searchableText.includes(term));
+      });
     }
     
-    // Apply filters
+    // Apply filters with AND logic (all filters must match)
     if (filters?.type) {
       results = results.filter(p => p.type === filters.type);
+    }
+    if (filters?.providerTypes && filters.providerTypes.length > 0) {
+      results = results.filter(p => filters.providerTypes!.includes(p.type));
     }
     if (filters?.verificationStatus) {
       results = results.filter(p => 
         (filters.verificationStatus === 'verified' && p.verified) ||
-        (filters.verificationStatus === 'pending' && !p.verified)
+        (filters.verificationStatus === 'pending' && !p.verified) ||
+        (filters.verificationStatus === 'rejected' && !p.verified)
       );
     }
-    if (filters?.isEmergency) {
-      results = results.filter(p => p.emergency);
+    if (filters?.isEmergency !== undefined && filters.isEmergency !== null) {
+      results = results.filter(p => p.emergency === filters.isEmergency);
     }
-    if (filters?.homeVisitAvailable) {
-      results = results.filter(p => p.home_visit_available);
+    if (filters?.homeVisitAvailable !== undefined && filters.homeVisitAvailable !== null) {
+      results = results.filter(p => p.home_visit_available === filters.homeVisitAvailable);
+    }
+    if (filters?.accessibilityFeatures && filters.accessibilityFeatures.length > 0) {
+      // Match ANY of the selected accessibility features
+      results = results.filter(p =>
+        filters.accessibilityFeatures!.some(f => 
+          (p.accessibility_features || []).includes(f)
+        )
+      );
+    }
+    if (filters?.city) {
+      results = results.filter(p => 
+        p.city.toLowerCase().includes(filters.city!.toLowerCase())
+      );
     }
     
     return results.map(mockToProvider);
@@ -258,32 +356,41 @@ export async function searchProviders(
     
     let results = allProviders;
     
-    // Apply search query
-    if (searchQuery) {
-      const lowerQuery = searchQuery.toLowerCase();
-      results = results.filter(p =>
-        p.businessName.toLowerCase().includes(lowerQuery) ||
-        p.address.toLowerCase().includes(lowerQuery) ||
-        p.description?.toLowerCase().includes(lowerQuery)
-      );
+    // Normalize search query for multilingual support
+    const searchTerms = searchQuery ? normalizeSearchQuery(searchQuery) : [];
+    
+    // Apply search query with multilingual matching
+    if (searchTerms.length > 0) {
+      results = results.filter(p => matchesSearchQuery(p, searchTerms));
     }
     
-    // Apply filters
+    // Apply filters with AND logic (all filters must match)
     if (filters?.type) {
       results = results.filter(p => p.providerType === filters.type);
+    }
+    if (filters?.providerTypes && filters.providerTypes.length > 0) {
+      results = results.filter(p => filters.providerTypes!.includes(p.providerType));
     }
     if (filters?.verificationStatus) {
       results = results.filter(p => p.verificationStatus === filters.verificationStatus);
     }
-    if (filters?.isEmergency) {
-      results = results.filter(p => p.isEmergency);
+    if (filters?.isEmergency !== undefined && filters.isEmergency !== null) {
+      results = results.filter(p => p.isEmergency === filters.isEmergency);
     }
-    if (filters?.homeVisitAvailable) {
-      results = results.filter(p => p.homeVisitAvailable);
+    if (filters?.homeVisitAvailable !== undefined && filters.homeVisitAvailable !== null) {
+      results = results.filter(p => p.homeVisitAvailable === filters.homeVisitAvailable);
     }
-    if (filters?.accessibilityFeatures?.length) {
+    if (filters?.accessibilityFeatures && filters.accessibilityFeatures.length > 0) {
+      // Match ANY of the selected accessibility features
       results = results.filter(p =>
-        filters.accessibilityFeatures!.some(f => p.accessibilityFeatures.includes(f))
+        filters.accessibilityFeatures!.some(f => 
+          (p.accessibilityFeatures || []).includes(f)
+        )
+      );
+    }
+    if (filters?.city) {
+      results = results.filter(p => 
+        (p.city || '').toLowerCase().includes(filters.city!.toLowerCase())
       );
     }
     
@@ -292,6 +399,18 @@ export async function searchProviders(
     console.error('Error searching providers:', error);
     return [];
   }
+}
+
+/**
+ * Get search result count for a given query and filters
+ * Requirements: 2.5
+ */
+export async function getSearchResultCount(
+  searchQuery: string,
+  filters?: SearchFilters
+): Promise<number> {
+  const results = await searchProviders(searchQuery, filters);
+  return results.length;
 }
 
 /**

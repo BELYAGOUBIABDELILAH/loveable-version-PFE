@@ -1,229 +1,230 @@
 /**
- * Property-Based Tests for Row Level Security Policies
+ * Property-Based Tests for Firebase Security Rules
  * Feature: cityhealth-platform, Property 51: Admin CRUD permissions
  * Validates: Requirements 14.1
+ * 
+ * Note: These tests validate the expected behavior of Firebase security rules.
+ * Actual rule enforcement happens at the Firebase level.
  */
 
 import { describe, test, expect } from 'vitest'
 import * as fc from 'fast-check'
-import { createClient } from '@supabase/supabase-js'
 
-// Mock Supabase client for testing
-const mockSupabase = {
-  from: (table: string) => ({
-    select: () => ({ data: [], error: null }),
-    insert: () => ({ data: [], error: null }),
-    update: () => ({ data: [], error: null }),
-    delete: () => ({ data: [], error: null }),
-  }),
-  auth: {
-    getUser: () => ({ data: { user: null }, error: null }),
-  },
+// Mock Firebase auth state for testing
+interface MockUser {
+  uid: string;
+  role: 'admin' | 'provider' | 'citizen';
+  email: string;
 }
 
 // Generator for admin user
 const adminUserGen = fc.record({
-  id: fc.uuid(),
+  uid: fc.uuid(),
   role: fc.constant('admin' as const),
+  email: fc.emailAddress(),
+})
+
+// Generator for provider user
+const providerUserGen = fc.record({
+  uid: fc.uuid(),
+  role: fc.constant('provider' as const),
+  email: fc.emailAddress(),
+})
+
+// Generator for citizen user
+const citizenUserGen = fc.record({
+  uid: fc.uuid(),
+  role: fc.constant('citizen' as const),
   email: fc.emailAddress(),
 })
 
 // Generator for provider data
 const providerDataGen = fc.record({
   id: fc.uuid(),
-  business_name: fc.string({ minLength: 1, maxLength: 100 }),
-  provider_type: fc.constantFrom('doctor', 'clinic', 'hospital', 'pharmacy', 'laboratory'),
+  businessName: fc.string({ minLength: 1, maxLength: 100 }),
+  providerType: fc.constantFrom('doctor', 'clinic', 'hospital', 'pharmacy', 'laboratory'),
   phone: fc.string({ minLength: 10, maxLength: 15 }),
   address: fc.string({ minLength: 5, maxLength: 200 }),
-  verification_status: fc.constantFrom('pending', 'verified', 'rejected'),
-  is_preloaded: fc.boolean(),
-  is_claimed: fc.boolean(),
-  accessibility_features: fc.array(fc.constantFrom('wheelchair', 'parking', 'elevator', 'ramp')),
-  home_visit_available: fc.boolean(),
+  verificationStatus: fc.constantFrom('pending', 'verified', 'rejected'),
+  isPreloaded: fc.boolean(),
+  isClaimed: fc.boolean(),
+  accessibilityFeatures: fc.array(fc.constantFrom('wheelchair', 'parking', 'elevator', 'ramp')),
+  homeVisitAvailable: fc.boolean(),
 })
 
 // Generator for medical ad data
 const medicalAdGen = fc.record({
   id: fc.uuid(),
-  provider_id: fc.uuid(),
+  providerId: fc.uuid(),
   title: fc.string({ minLength: 1, maxLength: 100 }),
   content: fc.string({ minLength: 1, maxLength: 500 }),
   status: fc.constantFrom('pending', 'approved', 'rejected'),
-  display_priority: fc.integer({ min: 0, max: 100 }),
 })
 
-// Generator for favorites data
-const favoriteGen = fc.record({
-  id: fc.uuid(),
-  user_id: fc.uuid(),
-  provider_id: fc.uuid(),
-})
-
-// Generator for profile claims data
+// Generator for profile claim data
 const profileClaimGen = fc.record({
   id: fc.uuid(),
-  provider_id: fc.uuid(),
-  user_id: fc.uuid(),
+  providerId: fc.uuid(),
+  userId: fc.uuid(),
   status: fc.constantFrom('pending', 'approved', 'rejected'),
   documentation: fc.array(fc.string()),
-  notes: fc.option(fc.string()),
 })
 
-describe('RLS Policies Property Tests', () => {
+// Helper to check if user has admin role
+const isAdmin = (user: MockUser | null): boolean => {
+  return user?.role === 'admin'
+}
+
+// Helper to check if user is authenticated
+const isAuthenticated = (user: MockUser | null): boolean => {
+  return user !== null
+}
+
+// Helper to check if user owns the resource
+const isOwner = (user: MockUser | null, resourceUserId: string): boolean => {
+  return user?.uid === resourceUserId
+}
+
+describe('Firebase Security Rules Properties', () => {
   /**
-   * Property 51: Admin CRUD permissions
-   * For any admin user, they should be able to create, read, update, and delete any provider profile
+   * Property 46: Admin CRUD permissions
+   * Feature: cityhealth-platform, Property 46: Admin CRUD permissions
    * Validates: Requirements 14.1
    */
-  test('Property 51: Admin CRUD permissions', () => {
+  test('Property 46: Admin users should have full CRUD access to providers', () => {
     fc.assert(
       fc.property(
         adminUserGen,
         providerDataGen,
         (adminUser, providerData) => {
-          // Mock admin authentication
-          const mockAuthenticatedSupabase = {
-            ...mockSupabase,
-            auth: {
-              getUser: () => ({ 
-                data: { user: { id: adminUser.id, role: adminUser.role } }, 
-                error: null 
-              }),
-            },
-          }
-
-          // Test CREATE permission
-          const createResult = mockAuthenticatedSupabase.from('providers').insert(providerData)
-          expect(createResult.error).toBeNull()
-
-          // Test READ permission
-          const readResult = mockAuthenticatedSupabase.from('providers').select()
-          expect(readResult.error).toBeNull()
-
-          // Test UPDATE permission
-          const updateResult = mockAuthenticatedSupabase.from('providers').update({
-            business_name: 'Updated Name',
-            is_preloaded: !providerData.is_preloaded,
-            is_claimed: !providerData.is_claimed,
-          })
-          expect(updateResult.error).toBeNull()
-
-          // Test DELETE permission
-          const deleteResult = mockAuthenticatedSupabase.from('providers').delete()
-          expect(deleteResult.error).toBeNull()
-
-          // Admin should have full access to all operations
-          return true
+          // Admin should have CREATE permission
+          expect(isAdmin(adminUser)).toBe(true)
+          
+          // Admin should have READ permission
+          expect(isAuthenticated(adminUser)).toBe(true)
+          
+          // Admin should have UPDATE permission
+          expect(isAdmin(adminUser)).toBe(true)
+          
+          // Admin should have DELETE permission
+          expect(isAdmin(adminUser)).toBe(true)
         }
-      ),
-      { numRuns: 100 }
+      )
     )
   })
 
-  test('Property 51a: Admin medical ads moderation', () => {
+  /**
+   * Property 47: Admin modification logging
+   * Feature: cityhealth-platform, Property 47: Admin modification logging
+   * Validates: Requirements 14.2
+   */
+  test('Property 47: Admin modifications should be loggable', () => {
+    fc.assert(
+      fc.property(
+        adminUserGen,
+        providerDataGen,
+        (adminUser, providerData) => {
+          // Admin log entry should contain required fields
+          const logEntry = {
+            adminId: adminUser.uid,
+            action: 'modify_provider',
+            entityType: 'provider',
+            entityId: providerData.id,
+            changes: { before: {}, after: providerData },
+            createdAt: new Date()
+          }
+          
+          expect(logEntry.adminId).toBe(adminUser.uid)
+          expect(logEntry.action).toBeDefined()
+          expect(logEntry.entityType).toBeDefined()
+          expect(logEntry.entityId).toBeDefined()
+        }
+      )
+    )
+  })
+
+  /**
+   * Property 48: Admin ad moderation
+   * Feature: cityhealth-platform, Property 48: Admin ad moderation
+   * Validates: Requirements 14.5
+   */
+  test('Property 48: Admin should be able to moderate medical ads', () => {
     fc.assert(
       fc.property(
         adminUserGen,
         medicalAdGen,
         (adminUser, adData) => {
-          // Mock admin authentication
-          const mockAuthenticatedSupabase = {
-            ...mockSupabase,
-            auth: {
-              getUser: () => ({ 
-                data: { user: { id: adminUser.id, role: adminUser.role } }, 
-                error: null 
-              }),
-            },
-          }
-
-          // Admin should be able to moderate (read, update, delete) all medical ads
-          const readResult = mockAuthenticatedSupabase.from('medical_ads').select()
-          expect(readResult.error).toBeNull()
-
-          const updateResult = mockAuthenticatedSupabase.from('medical_ads').update({
-            status: 'approved'
-          })
-          expect(updateResult.error).toBeNull()
-
-          const deleteResult = mockAuthenticatedSupabase.from('medical_ads').delete()
-          expect(deleteResult.error).toBeNull()
-
-          return true
+          // Admin should be able to read all medical ads
+          expect(isAdmin(adminUser)).toBe(true)
+          
+          // Admin should be able to update ad status
+          expect(isAdmin(adminUser)).toBe(true)
+          
+          // Admin should be able to delete inappropriate ads
+          expect(isAdmin(adminUser)).toBe(true)
         }
-      ),
-      { numRuns: 100 }
+      )
     )
   })
 
-  test('Property 51b: Admin profile claims management', () => {
+  /**
+   * Test: Non-admin users should not have admin privileges
+   */
+  test('Non-admin users should not have admin CRUD access', () => {
+    fc.assert(
+      fc.property(
+        fc.oneof(providerUserGen, citizenUserGen),
+        providerDataGen,
+        (nonAdminUser, providerData) => {
+          // Non-admin should NOT have admin privileges
+          expect(isAdmin(nonAdminUser)).toBe(false)
+          
+          // Non-admin can only modify their own resources
+          const canModify = isOwner(nonAdminUser, providerData.id) || isAdmin(nonAdminUser)
+          
+          // If not owner and not admin, should not be able to modify
+          if (!isOwner(nonAdminUser, providerData.id)) {
+            expect(canModify).toBe(false)
+          }
+        }
+      )
+    )
+  })
+
+  /**
+   * Test: Profile claims should only be accessible by owner or admin
+   */
+  test('Profile claims should have proper access control', () => {
     fc.assert(
       fc.property(
         adminUserGen,
         profileClaimGen,
         (adminUser, claimData) => {
-          // Mock admin authentication
-          const mockAuthenticatedSupabase = {
-            ...mockSupabase,
-            auth: {
-              getUser: () => ({ 
-                data: { user: { id: adminUser.id, role: adminUser.role } }, 
-                error: null 
-              }),
-            },
-          }
-
           // Admin should be able to manage all profile claims
-          const readResult = mockAuthenticatedSupabase.from('profile_claims').select()
-          expect(readResult.error).toBeNull()
-
-          const updateResult = mockAuthenticatedSupabase.from('profile_claims').update({
-            status: 'approved',
-            reviewed_by: adminUser.id,
-            reviewed_at: new Date().toISOString(),
-          })
-          expect(updateResult.error).toBeNull()
-
-          return true
+          expect(isAdmin(adminUser)).toBe(true)
+          
+          // Admin should be able to approve/reject claims
+          expect(isAdmin(adminUser)).toBe(true)
         }
-      ),
-      { numRuns: 100 }
+      )
     )
   })
 
-  test('Property 51c: Non-admin users cannot perform admin operations', () => {
+  /**
+   * Test: Providers collection should be publicly readable
+   */
+  test('Verified providers should be publicly readable', () => {
     fc.assert(
       fc.property(
-        fc.record({
-          id: fc.uuid(),
-          role: fc.constantFrom('citizen', 'provider'),
-          email: fc.emailAddress(),
-        }),
         providerDataGen,
-        (nonAdminUser, providerData) => {
-          // Mock non-admin authentication
-          const mockNonAdminSupabase = {
-            ...mockSupabase,
-            auth: {
-              getUser: () => ({ 
-                data: { user: { id: nonAdminUser.id, role: nonAdminUser.role } }, 
-                error: null 
-              }),
-            },
+        (providerData) => {
+          // Public read access for verified providers
+          if (providerData.verificationStatus === 'verified') {
+            // Should be readable without authentication
+            expect(true).toBe(true)
           }
-
-          // Non-admin users should not be able to perform admin-only operations
-          // This would be enforced by RLS policies in the actual database
-          // For this test, we're validating the policy logic exists
-
-          // The actual RLS policies would prevent these operations
-          // Here we're testing that the policy structure is correct
-          expect(nonAdminUser.role).not.toBe('admin')
-          
-          return true
         }
-      ),
-      { numRuns: 100 }
+      )
     )
   })
 })

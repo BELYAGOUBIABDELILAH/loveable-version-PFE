@@ -1,4 +1,13 @@
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-chat`;
+/**
+ * AI Chat Service
+ * 
+ * Note: This service uses environment variables for the chat endpoint.
+ * The endpoint can be configured to use Firebase Cloud Functions or any other backend.
+ */
+
+// Use Firebase Functions URL if available, otherwise fall back to configured URL
+const CHAT_URL = import.meta.env.VITE_AI_CHAT_URL || 
+  `https://${import.meta.env.VITE_FIREBASE_PROJECT_ID || 'cityhealth-ec7e7'}.cloudfunctions.net/aiChat`;
 
 type Message = { role: "user" | "assistant"; content: string };
 
@@ -18,7 +27,6 @@ export async function streamChat({
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       },
       body: JSON.stringify({ messages }),
     });

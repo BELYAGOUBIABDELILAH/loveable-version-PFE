@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import Papa from 'papaparse';
-import { supabase } from '@/integrations/supabase/client';
+import { createProvider } from '@/integrations/firebase/services/providerService';
 
 interface ImportRow {
   business_name: string;
@@ -217,31 +217,24 @@ export default function BulkImportForm() {
                                    row.home_visit_available?.toLowerCase() === 'oui' || 
                                    row.home_visit_available === '1';
 
-          // Insert provider into database
-          const { data: provider, error } = await supabase
-            .from('providers')
-            .insert({
-              business_name: row.business_name.trim(),
-              provider_type: row.provider_type,
-              phone: row.phone.trim(),
-              address: row.address.trim(),
-              email: row.email?.trim() || null,
-              city: row.city?.trim() || null,
-              description: row.description?.trim() || null,
-              website: row.website?.trim() || null,
-              verification_status: 'verified', // Admin imported = auto-verified
-              is_preloaded: true,
-              is_claimed: false,
-              accessibility_features: accessibilityFeatures,
-              home_visit_available: homeVisitAvailable,
-              is_emergency: false
-            })
-            .select()
-            .single();
-
-          if (error) {
-            throw error;
-          }
+          // Insert provider into Firebase
+          await createProvider({
+            userId: '', // Preloaded providers don't have a user yet
+            businessName: row.business_name.trim(),
+            providerType: row.provider_type,
+            phone: row.phone.trim(),
+            address: row.address.trim(),
+            email: row.email?.trim() || undefined,
+            city: row.city?.trim() || undefined,
+            description: row.description?.trim() || undefined,
+            website: row.website?.trim() || undefined,
+            verificationStatus: 'verified', // Admin imported = auto-verified
+            isPreloaded: true,
+            isClaimed: false,
+            accessibilityFeatures: accessibilityFeatures,
+            homeVisitAvailable: homeVisitAvailable,
+            isEmergency: false
+          });
 
           results.push({
             success: true,

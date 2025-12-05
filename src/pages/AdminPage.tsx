@@ -85,13 +85,11 @@ const AdminPage = () => {
   ];
 
   const handleApprove = (providerId: number) => {
-    console.log(`Approving provider ${providerId}`);
-    // Implementation would go here
+    // TODO: Implement provider approval
   };
 
   const handleReject = (providerId: number) => {
-    console.log(`Rejecting provider ${providerId}`);
-    // Implementation would go here
+    // TODO: Implement provider rejection
   };
 
   return (

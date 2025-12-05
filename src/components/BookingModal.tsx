@@ -5,8 +5,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { saveAppointment } from '@/data/providers';
+import { createAppointment } from '@/integrations/firebase/services/appointmentService';
 import { useNotifications } from '@/hooks/useNotifications';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 
 interface BookingModalProps {
@@ -23,7 +24,9 @@ export const BookingModal: React.FC<BookingModalProps> = ({ open, onOpenChange, 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { sendNotification } = useNotifications();
+  const { user } = useAuth();
 
   const slots = useMemo(() => {
     const out: string[] = [];
@@ -38,33 +41,48 @@ export const BookingModal: React.FC<BookingModalProps> = ({ open, onOpenChange, 
     return out;
   }, []);
 
-  const confirm = () => {
+  const confirm = async () => {
     if (!selectedISO || !name || !phone) return;
     
-    const appointmentId = crypto.randomUUID();
-    saveAppointment({ 
-      id: appointmentId, 
-      providerId, 
-      when: selectedISO, 
-      name, 
-      phone,
-      email 
-    });
+    setIsSubmitting(true);
+    
+    try {
+      // Create appointment in Firestore
+      await createAppointment({
+        providerId,
+        userId: user?.id || 'anonymous',
+        datetime: new Date(selectedISO),
+        contactInfo: {
+          name,
+          phone,
+          email: email || undefined,
+        },
+      });
 
-    // Send notification
-    sendNotification({
-      userId: 'current-user',
-      type: 'appointment',
-      title: 'Rendez-vous confirmé',
-      body: `Votre rendez-vous avec ${providerName} est confirmé pour le ${format(new Date(selectedISO), 'EEEE d MMMM à HH:mm', { locale: fr })}`,
-      link: '/appointments',
-    });
+      // Send notification
+      sendNotification({
+        userId: user?.id || 'current-user',
+        type: 'appointment',
+        title: 'Rendez-vous confirmé',
+        body: `Votre rendez-vous avec ${providerName} est confirmé pour le ${format(new Date(selectedISO), 'EEEE d MMMM à HH:mm', { locale: fr })}`,
+        link: '/profile',
+      });
 
-    // TODO: Send confirmation email via edge function when Cloud is enabled
-    // await supabase.functions.invoke('send-appointment-email', { ... })
-
-    toast.success('Rendez-vous confirmé! Vous recevrez un rappel 24h avant.');
-    onOpenChange(false);
+      toast.success('Rendez-vous confirmé! Vous recevrez un rappel 24h avant.');
+      
+      // Reset form
+      setSelectedISO(null);
+      setName('');
+      setPhone('');
+      setEmail('');
+      
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error creating appointment:', error);
+      toast.error('Erreur lors de la création du rendez-vous. Veuillez réessayer.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -117,8 +135,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({ open, onOpenChange, 
         </div>
 
         <div className="flex justify-end gap-2 mt-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Annuler</Button>
-          <Button onClick={confirm} disabled={!selectedISO || !name || !phone}>Confirmer</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>Annuler</Button>
+          <Button onClick={confirm} disabled={!selectedISO || !name || !phone || isSubmitting}>
+            {isSubmitting ? 'Confirmation...' : 'Confirmer'}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

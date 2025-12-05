@@ -1,129 +1,63 @@
-
 import { useState, useEffect, useRef } from 'react';
 import { useAnimateIn } from '@/lib/animations';
 import { 
-  Brain, 
-  Lightbulb, 
   Search, 
-  Upload, 
-  Database, 
-  Zap,
+  MapPin, 
+  Calendar, 
+  Star,
   CheckCircle,
-  Code,
-  PenTool,
-  BookOpen,
-  Save,
+  UserPlus,
+  FileText,
   Shield,
-  Clock
+  Phone,
+  Heart,
+  Building2,
+  Users
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import AnimatedTransition from '@/components/AnimatedTransition';
 import { Link } from 'react-router-dom';
 
-const FeatureCard = ({ 
-  icon, 
-  title, 
-  description,
-  color = 'primary'
-}: { 
-  icon: React.ReactNode, 
-  title: string, 
-  description: string,
-  color?: string
-}) => {
-  return (
-    <div className="flex flex-col items-start p-6 glass-panel rounded-lg h-full">
-      <div className={`w-12 h-12 flex items-center justify-center rounded-full bg-${color}/10 mb-4`}>
-        {icon}
-      </div>
-      <h3 className="text-xl font-bold mb-2 text-primary">{title}</h3>
-      <p className="text-foreground/80">{description}</p>
-    </div>
-  );
-};
-
-const WorkflowStep = ({ 
+const StepCard = ({ 
   number, 
+  icon, 
   title, 
   description,
   color = "primary" 
 }: { 
-  number: number, 
+  number: number,
+  icon: React.ReactNode, 
   title: string, 
   description: string,
   color?: string 
 }) => {
   return (
     <div className="relative">
-      <div className={`absolute top-0 left-0 w-10 h-10 rounded-full bg-${color} text-white flex items-center justify-center font-bold text-lg z-10`}>
+      <div className={`absolute -top-4 -left-4 w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center font-bold text-lg z-10`}>
         {number}
       </div>
-      <div className="pl-16">
-        <h3 className="text-xl font-bold mb-2">{title}</h3>
-        <p className="text-foreground/80">{description}</p>
-      </div>
+      <Card className="glass-card h-full pt-6">
+        <CardContent className="p-6">
+          <div className="w-12 h-12 flex items-center justify-center rounded-full bg-primary/10 mb-4">
+            {icon}
+          </div>
+          <h3 className="text-xl font-bold mb-2">{title}</h3>
+          <p className="text-foreground/80">{description}</p>
+        </CardContent>
+      </Card>
     </div>
   );
 };
 
-const FeatureShowcase = ({
-  title,
-  description,
-  image,
-  features,
-  reversed = false
-}: {
-  title: string,
-  description: string,
-  image: string,
-  features: { icon: React.ReactNode, text: string }[],
-  reversed?: boolean
-}) => {
-  return (
-    <div className={`flex flex-col ${reversed ? 'md:flex-row-reverse' : 'md:flex-row'} gap-8 my-16`}>
-      <div className="w-full md:w-1/2">
-        <div className="glass-panel rounded-lg overflow-hidden h-full">
-          <img src={image} alt={title} className="w-full h-full object-cover" />
-        </div>
-      </div>
-      <div className="w-full md:w-1/2 flex flex-col justify-center">
-        <h3 className="text-2xl font-bold mb-3 text-primary">{title}</h3>
-        <p className="text-foreground/80 mb-6">{description}</p>
-        <div className="space-y-4">
-          {features.map((feature, index) => (
-            <div key={index} className="flex items-start gap-3">
-              <div className="w-6 h-6 mt-1 flex-shrink-0 text-primary">
-                {feature.icon}
-              </div>
-              <p className="text-foreground/80">{feature.text}</p>
-            </div>
-          ))}
-        </div>
-      </div>
+const FeatureItem = ({ icon, text }: { icon: React.ReactNode, text: string }) => (
+  <div className="flex items-start gap-3">
+    <div className="w-6 h-6 mt-1 flex-shrink-0 text-primary">
+      {icon}
     </div>
-  );
-};
+    <p className="text-foreground/80">{text}</p>
+  </div>
+);
 
-const ValueProp = ({
-  icon,
-  title,
-  description
-}: {
-  icon: React.ReactNode,
-  title: string,
-  description: string
-}) => {
-  return (
-    <div className="flex flex-col items-center text-center p-6">
-      <div className="w-16 h-16 flex items-center justify-center rounded-full bg-primary/10 mb-4">
-        {icon}
-      </div>
-      <h3 className="text-xl font-bold mb-3">{title}</h3>
-      <p className="text-foreground/80">{description}</p>
-    </div>
-  );
-};
 
 const HowPage = () => {
   const [loading, setLoading] = useState(true);
@@ -131,11 +65,9 @@ const HowPage = () => {
   const heroRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
-    // Simulate loading
     const timer = setTimeout(() => {
       setLoading(false);
     }, 1000);
-    
     return () => clearTimeout(timer);
   }, []);
 
@@ -147,7 +79,6 @@ const HowPage = () => {
         heroRef.current.style.transform = `translateY(${scrollPosition * parallaxFactor}px)`;
       }
     };
-
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
@@ -165,248 +96,238 @@ const HowPage = () => {
           <div ref={heroRef} className="relative w-full max-w-3xl mx-auto">
             <div className="absolute -z-10 w-[300px] h-[300px] rounded-full bg-gradient-to-r from-primary/30 to-accent/30 blur-3xl left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2"></div>
             <div className="glass-panel rounded-full py-5 px-8 inline-block mx-auto mb-12">
-              <h1 className="text-2xl md:text-3xl font-bold text-primary">How does Cortex work?</h1>
+              <h1 className="text-2xl md:text-3xl font-bold text-primary">Comment utiliser CityHealth ?</h1>
             </div>
             
             <p className="text-xl text-center text-foreground/80 max-w-2xl mx-auto mb-12">
-              There's a lot of magic and sophisticated technology behind Cortex, but we've kept it simple to use.
+              Trouvez et contactez les meilleurs professionnels de santé de Sidi Bel Abbès en quelques clics.
             </p>
             
-            <div className="flex justify-center">
-              <Button size="lg" className="rounded-full">
-                Start exploring
+            <div className="flex justify-center gap-4">
+              <Button size="lg" className="rounded-full" asChild>
+                <Link to="/search">Rechercher un prestataire</Link>
+              </Button>
+              <Button size="lg" variant="outline" className="rounded-full" asChild>
+                <Link to="/provider/register">Devenir prestataire</Link>
               </Button>
             </div>
           </div>
         </div>
-        
-        {/* Workflow Section */}
+
+        {/* For Citizens Section */}
         <div className="mb-24">
-          <h2 className="text-3xl font-bold text-center mb-12">The Cortex Workflow</h2>
-          
-          <div className="relative">
-            <div className="absolute left-5 top-6 w-0.5 h-[calc(100%-60px)] bg-gradient-to-b from-primary via-accent to-primary/30"></div>
-            
-            <div className="space-y-16 pl-4">
-              <WorkflowStep 
-                number={1}
-                title="Collect"
-                description="Easily save content from anywhere - web pages, images, documents, notes, and more with our browser extension or mobile app."
-              />
-              <WorkflowStep 
-                number={2}
-                title="Organize"
-                description="Cortex automatically categorizes and tags your content using advanced AI, creating a beautiful, organized knowledge base without manual effort."
-              />
-              <WorkflowStep 
-                number={3}
-                title="Connect"
-                description="Discover surprising connections between your ideas with our neural network visualization that reveals patterns you might miss."
-              />
-              <WorkflowStep 
-                number={4}
-                title="Create"
-                description="Transform your collected knowledge into new ideas, projects, and content with powerful AI assistance that understands your thinking."
-              />
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-full mb-4">
+              <Users className="w-5 h-5 text-blue-600" />
+              <span className="text-blue-700 font-medium">Pour les citoyens</span>
             </div>
+            <h2 className="text-3xl font-bold">Trouvez votre professionnel de santé</h2>
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <StepCard 
+              number={1}
+              icon={<Search className="w-6 h-6 text-primary" />}
+              title="Recherchez"
+              description="Utilisez notre barre de recherche pour trouver un médecin, une pharmacie, un laboratoire ou tout autre prestataire de santé."
+            />
+            <StepCard 
+              number={2}
+              icon={<MapPin className="w-6 h-6 text-primary" />}
+              title="Localisez"
+              description="Consultez la carte interactive pour voir les prestataires près de chez vous et obtenir l'itinéraire."
+            />
+            <StepCard 
+              number={3}
+              icon={<Star className="w-6 h-6 text-primary" />}
+              title="Comparez"
+              description="Lisez les avis des autres patients et vérifiez les qualifications pour faire le meilleur choix."
+            />
+            <StepCard 
+              number={4}
+              icon={<Calendar className="w-6 h-6 text-primary" />}
+              title="Contactez"
+              description="Appelez directement ou prenez rendez-vous en ligne avec le prestataire de votre choix."
+            />
           </div>
         </div>
         
-        {/* Feature Showcases */}
+        {/* Features for Citizens */}
+        <div className="glass-panel p-8 rounded-lg mb-24">
+          <h3 className="text-2xl font-bold mb-6 text-center">Fonctionnalités pour les patients</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <FeatureItem 
+              icon={<CheckCircle className="w-5 h-5" />}
+              text="Recherche par spécialité, quartier ou nom du prestataire"
+            />
+            <FeatureItem 
+              icon={<CheckCircle className="w-5 h-5" />}
+              text="Filtres avancés : urgences, accessibilité PMR, visites à domicile"
+            />
+            <FeatureItem 
+              icon={<CheckCircle className="w-5 h-5" />}
+              text="Carte interactive avec géolocalisation"
+            />
+            <FeatureItem 
+              icon={<CheckCircle className="w-5 h-5" />}
+              text="Sauvegarde de vos prestataires favoris"
+            />
+            <FeatureItem 
+              icon={<CheckCircle className="w-5 h-5" />}
+              text="Informations détaillées : horaires, services, coordonnées"
+            />
+            <FeatureItem 
+              icon={<CheckCircle className="w-5 h-5" />}
+              text="Accès aux services d'urgence 24h/24"
+            />
+          </div>
+        </div>
+
+        {/* For Providers Section */}
         <div className="mb-24">
-          <h2 className="text-3xl font-bold text-center mb-12">Designed for Your Digital Brain</h2>
+          <div className="text-center mb-12">
+            <div className="inline-flex items-center gap-2 bg-green-50 px-4 py-2 rounded-full mb-4">
+              <Building2 className="w-5 h-5 text-green-600" />
+              <span className="text-green-700 font-medium">Pour les professionnels de santé</span>
+            </div>
+            <h2 className="text-3xl font-bold">Rejoignez CityHealth</h2>
+          </div>
           
-          <FeatureShowcase
-            title="Your knowledge base is visual"
-            description="Cortex transforms your notes and saved content into a beautiful, visual interface that makes browsing your digital mind a pleasure."
-            image="/placeholder.svg"
-            features={[
-              { icon: <CheckCircle size={24} />, text: "Visual organization of your knowledge" },
-              { icon: <CheckCircle size={24} />, text: "Custom tagging system for personalized categorization" },
-              { icon: <CheckCircle size={24} />, text: "Automatic image extraction from saved content" },
-              { icon: <CheckCircle size={24} />, text: "Beautiful grid layouts that adapt to your content" },
-            ]}
-          />
-          
-          <FeatureShowcase
-            title="Find anything instantly"
-            description="Powerful semantic search understands what you're looking for, not just matching keywords but finding related concepts."
-            image="/placeholder.svg"
-            features={[
-              { icon: <CheckCircle size={24} />, text: "Neural search that understands concepts, not just keywords" },
-              { icon: <CheckCircle size={24} />, text: "Filter by content type, date, source, and custom tags" },
-              { icon: <CheckCircle size={24} />, text: "Save complex searches for quick access later" },
-              { icon: <CheckCircle size={24} />, text: "Chat with your knowledge base in natural language" },
-            ]}
-            reversed={true}
-          />
-          
-          <FeatureShowcase
-            title="AI-powered connections"
-            description="Discover unexpected connections between ideas with our proprietary neural network that reveals patterns you might miss."
-            image="/placeholder.svg"
-            features={[
-              { icon: <CheckCircle size={24} />, text: "Neural connection map visualizes relationships between your ideas" },
-              { icon: <CheckCircle size={24} />, text: "Suggestion engine recommends relevant content from your knowledge base" },
-              { icon: <CheckCircle size={24} />, text: "Weekly insights report highlights emerging patterns" },
-              { icon: <CheckCircle size={24} />, text: "Continuously learns from your usage patterns" },
-            ]}
-          />
-          
-          <FeatureShowcase
-            title="Your private knowledge hub"
-            description="Unlike social bookmarking tools, Cortex is completely private. Your data remains yours alone, secured with end-to-end encryption."
-            image="/placeholder.svg"
-            features={[
-              { icon: <CheckCircle size={24} />, text: "End-to-end encryption for all your data" },
-              { icon: <CheckCircle size={24} />, text: "No data mining or advertising" },
-              { icon: <CheckCircle size={24} />, text: "Optional local-only storage mode" },
-              { icon: <CheckCircle size={24} />, text: "Export your data anytime in standard formats" },
-            ]}
-            reversed={true}
-          />
-          
-          <FeatureShowcase
-            title="An extension for your mind"
-            description="Cortex becomes an extension of your thinking process, available across all your devices and integrated with your workflow."
-            image="/placeholder.svg"
-            features={[
-              { icon: <CheckCircle size={24} />, text: "Synchronized across all your devices in real-time" },
-              { icon: <CheckCircle size={24} />, text: "Browser extensions for Chrome, Firefox, Safari, and Edge" },
-              { icon: <CheckCircle size={24} />, text: "Native apps for iOS, Android, macOS, and Windows" },
-              { icon: <CheckCircle size={24} />, text: "API for custom integrations with your workflow" },
-            ]}
-          />
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            <StepCard 
+              number={1}
+              icon={<UserPlus className="w-6 h-6 text-primary" />}
+              title="Inscrivez-vous"
+              description="Créez votre compte professionnel en quelques minutes avec vos informations de base."
+            />
+            <StepCard 
+              number={2}
+              icon={<FileText className="w-6 h-6 text-primary" />}
+              title="Complétez votre profil"
+              description="Ajoutez vos services, horaires, photos et documents pour un profil complet."
+            />
+            <StepCard 
+              number={3}
+              icon={<Shield className="w-6 h-6 text-primary" />}
+              title="Faites-vous vérifier"
+              description="Soumettez vos documents pour obtenir le badge 'Vérifié' et gagner la confiance des patients."
+            />
+            <StepCard 
+              number={4}
+              icon={<Users className="w-6 h-6 text-primary" />}
+              title="Accueillez des patients"
+              description="Recevez des demandes de rendez-vous et développez votre patientèle."
+            />
+          </div>
         </div>
         
-        {/* Values Section */}
-        <div className="py-16 px-4 rounded-lg glass-panel my-24">
-          <h2 className="text-3xl font-bold text-center mb-3">We believe software should stay out of the way</h2>
-          <p className="text-xl text-center text-foreground/80 max-w-3xl mx-auto mb-16">
-            And let you focus on what matters — which isn't software.
-          </p>
-          
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <ValueProp
-              icon={<Brain className="w-8 h-8 text-primary" />}
-              title="Focus is freedom"
-              description="Cortex helps you stay focused by eliminating distractions and streamlining your thinking process."
+        {/* Features for Providers */}
+        <div className="glass-panel p-8 rounded-lg mb-24">
+          <h3 className="text-2xl font-bold mb-6 text-center">Avantages pour les prestataires</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <FeatureItem 
+              icon={<CheckCircle className="w-5 h-5" />}
+              text="Visibilité accrue auprès des patients de Sidi Bel Abbès"
             />
-            <ValueProp
-              icon={<Shield className="w-8 h-8 text-primary" />}
-              title="Make it invisible"
-              description="The best tools are the ones you forget you're using because they feel like natural extensions of yourself."
+            <FeatureItem 
+              icon={<CheckCircle className="w-5 h-5" />}
+              text="Profil professionnel personnalisable avec photos et services"
             />
-            <ValueProp
-              icon={<Lightbulb className="w-8 h-8 text-primary" />}
-              title="Less becomes more"
-              description="By removing unnecessary features and complexity, we create a more powerful experience."
+            <FeatureItem 
+              icon={<CheckCircle className="w-5 h-5" />}
+              text="Badge de vérification pour renforcer la confiance"
+            />
+            <FeatureItem 
+              icon={<CheckCircle className="w-5 h-5" />}
+              text="Gestion des rendez-vous depuis votre tableau de bord"
+            />
+            <FeatureItem 
+              icon={<CheckCircle className="w-5 h-5" />}
+              text="Statistiques de visites et d'engagement"
+            />
+            <FeatureItem 
+              icon={<CheckCircle className="w-5 h-5" />}
+              text="Inscription gratuite et sans engagement"
             />
           </div>
           
-          <div className="flex justify-center mt-16">
+          <div className="flex justify-center mt-8">
             <Button size="lg" className="rounded-full" asChild>
-              <Link to="/">
-                Start your journey
+              <Link to="/provider/register">
+                S'inscrire comme prestataire
               </Link>
             </Button>
           </div>
         </div>
-        
-        {/* Features Grid */}
-        <div className="mb-20">
-          <h2 className="text-3xl font-bold text-center mb-12">Key Features</h2>
+
+        {/* FAQ Section */}
+        <div className="mb-24">
+          <h2 className="text-3xl font-bold text-center mb-12">Questions fréquentes</h2>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <FeatureCard
-              icon={<Upload className="w-8 h-8 text-primary" />}
-              title="Import"
-              description="Easily import your notes, PDFs, images, and web links into your second brain."
-            />
-            <FeatureCard
-              icon={<Database className="w-8 h-8 text-primary" />}
-              title="Organize"
-              description="Our AI automatically categorizes and tags your content for effortless organization."
-            />
-            <FeatureCard
-              icon={<Brain className="w-8 h-8 text-primary" />}
-              title="Connect"
-              description="Discover hidden connections between your ideas with our neural network visualization."
-            />
-            <FeatureCard
-              icon={<Search className="w-8 h-8 text-primary" />}
-              title="Retrieve"
-              description="Instantly find exactly what you're looking for with semantic search that understands context."
-            />
-            <FeatureCard
-              icon={<Lightbulb className="w-8 h-8 text-primary" />}
-              title="Generate"
-              description="Get AI-powered insights and suggestions based on your knowledge base."
-            />
-            <FeatureCard
-              icon={<Zap className="w-8 h-8 text-primary" />}
-              title="Execute"
-              description="Turn your ideas into action with project management and collaboration tools."
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            <Card className="glass-card">
+              <CardContent className="p-6">
+                <h4 className="font-bold mb-2">CityHealth est-il gratuit ?</h4>
+                <p className="text-foreground/80 text-sm">
+                  Oui, CityHealth est entièrement gratuit pour les patients. Les prestataires 
+                  peuvent s'inscrire gratuitement et bénéficier de fonctionnalités de base.
+                </p>
+              </CardContent>
+            </Card>
+            
+            <Card className="glass-card">
+              <CardContent className="p-6">
+                <h4 className="font-bold mb-2">Comment sont vérifiés les prestataires ?</h4>
+                <p className="text-foreground/80 text-sm">
+                  Notre équipe vérifie les licences professionnelles, les diplômes et les 
+                  agréments de chaque prestataire avant d'attribuer le badge "Vérifié".
+                </p>
+              </CardContent>
+            </Card>
+            
+            <Card className="glass-card">
+              <CardContent className="p-6">
+                <h4 className="font-bold mb-2">Puis-je prendre rendez-vous en ligne ?</h4>
+                <p className="text-foreground/80 text-sm">
+                  Oui, vous pouvez prendre rendez-vous directement via la plateforme avec 
+                  les prestataires qui ont activé cette fonctionnalité.
+                </p>
+              </CardContent>
+            </Card>
+            
+            <Card className="glass-card">
+              <CardContent className="p-6">
+                <h4 className="font-bold mb-2">Comment signaler un problème ?</h4>
+                <p className="text-foreground/80 text-sm">
+                  Vous pouvez nous contacter via la page Contact ou signaler directement 
+                  un problème sur le profil d'un prestataire.
+                </p>
+              </CardContent>
+            </Card>
           </div>
         </div>
         
-        {/* Who is it for section */}
-        <div className="mb-20 glass-panel p-10 rounded-lg">
-          <h2 className="text-3xl font-bold text-center mb-12">Made for designers, writers, researchers, developers & visual minds of all kinds</h2>
+        {/* CTA Section */}
+        <div className="glass-panel p-10 rounded-lg text-center">
+          <h2 className="text-3xl font-bold mb-4">Prêt à commencer ?</h2>
+          <p className="text-xl text-foreground/80 max-w-2xl mx-auto mb-8">
+            Rejoignez des milliers de citoyens qui utilisent CityHealth pour trouver 
+            les meilleurs professionnels de santé à Sidi Bel Abbès.
+          </p>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mt-12">
-            <div className="text-center">
-              <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                <PenTool className="w-10 h-10 text-primary" />
-              </div>
-              <h3 className="font-bold text-lg">Designers</h3>
-            </div>
-            <div className="text-center">
-              <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                <BookOpen className="w-10 h-10 text-primary" />
-              </div>
-              <h3 className="font-bold text-lg">Writers</h3>
-            </div>
-            <div className="text-center">
-              <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                <Search className="w-10 h-10 text-primary" />
-              </div>
-              <h3 className="font-bold text-lg">Researchers</h3>
-            </div>
-            <div className="text-center">
-              <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                <Code className="w-10 h-10 text-primary" />
-              </div>
-              <h3 className="font-bold text-lg">Developers</h3>
-            </div>
-          </div>
-        </div>
-        
-        {/* Technical Details */}
-        <div className="mt-20 glass-panel p-8 rounded-lg">
-          <h2 className="text-3xl font-bold mb-6 text-center text-primary">Technical Details</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div>
-              <h3 className="text-xl font-bold mb-3">AI Technology</h3>
-              <p className="text-foreground/80 mb-4">
-                Our platform uses state-of-the-art large language models and vector embeddings to understand the meaning behind your content, not just keywords.
-              </p>
-              <h3 className="text-xl font-bold mb-3">Data Storage</h3>
-              <p className="text-foreground/80">
-                All your data is encrypted end-to-end and stored in secure cloud infrastructure with regular backups and disaster recovery.
-              </p>
-            </div>
-            <div>
-              <h3 className="text-xl font-bold mb-3">Integration</h3>
-              <p className="text-foreground/80 mb-4">
-                Connect with tools you already use like Notion, Evernote, Google Drive, and more through our extensive API.
-              </p>
-              <h3 className="text-xl font-bold mb-3">Customization</h3>
-              <p className="text-foreground/80">
-                Tailor the experience to your needs with customizable workflows, templates, and visualization options.
-              </p>
-            </div>
+          <div className="flex flex-col sm:flex-row justify-center gap-4">
+            <Button size="lg" className="rounded-full" asChild>
+              <Link to="/search">
+                <Search className="mr-2" size={18} />
+                Rechercher un prestataire
+              </Link>
+            </Button>
+            <Button size="lg" variant="outline" className="rounded-full" asChild>
+              <Link to="/contact">
+                <Phone className="mr-2" size={18} />
+                Nous contacter
+              </Link>
+            </Button>
           </div>
         </div>
       </div>

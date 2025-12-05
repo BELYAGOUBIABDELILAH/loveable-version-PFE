@@ -2,7 +2,6 @@
 import type { Config } from "tailwindcss";
 
 export default {
-	darkMode: ["class"],
 	content: [
 		"./pages/**/*.{ts,tsx}",
 		"./components/**/*.{ts,tsx}",
@@ -20,11 +19,21 @@ export default {
 		},
 		extend: {
 			fontFamily: {
-				sans: ['Inter', 'Tajawal', 'ui-sans-serif', 'system-ui'],
-				inter: ['Inter', 'ui-sans-serif', 'system-ui'],
+				// Google Antigravity Design System - Google Sans with fallbacks
+				sans: ['Google Sans', 'DM Sans', 'Open Sans', 'Tajawal', 'ui-sans-serif', 'system-ui'],
+				'google-sans': ['Google Sans', 'DM Sans', 'Open Sans', 'sans-serif'],
 				tajawal: ['Tajawal', 'Arial', 'sans-serif'],
 			},
 			colors: {
+				// Google Antigravity Design System Colors
+				'antigravity': {
+					background: '#FFFFFF',
+					'primary-text': '#202124',
+					'secondary-text': '#5F6368',
+					accent: '#4285F4',
+					'button-primary': '#1F1F1F',
+					'button-secondary': '#F1F3F4',
+				},
 				border: 'hsl(var(--border))',
 				input: 'hsl(var(--input))',
 				ring: 'hsl(var(--ring))',
@@ -59,10 +68,23 @@ export default {
 					foreground: 'hsl(var(--card-foreground))'
 				},
 			},
+			spacing: {
+				// Google Antigravity Design System Spacing
+				'section-gap': '120px',
+				'container-padding': '80px',
+			},
 			borderRadius: {
 				lg: 'var(--radius)',
 				md: 'calc(var(--radius) - 2px)',
-				sm: 'calc(var(--radius) - 4px)'
+				sm: 'calc(var(--radius) - 4px)',
+				// Google Antigravity Design System - Pill shape
+				'pill': '9999px',
+				'card': '16px',
+			},
+			boxShadow: {
+				// Google Antigravity Design System - Soft shadows
+				'soft': '0 10px 30px rgba(0,0,0,0.05)',
+				'soft-lg': '0 15px 40px rgba(0,0,0,0.08)',
 			},
 			keyframes: {
 				'accordion-down': {

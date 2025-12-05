@@ -10,9 +10,26 @@ import {
   searchQueryArbitrary,
   filterStateArbitrary,
 } from '../generators'
-import type { Database } from '@/integrations/supabase/types'
+import type { Provider as FirebaseProvider } from '@/integrations/firebase/types'
 
-type Provider = Database['public']['Tables']['providers']['Row']
+// Map Firebase Provider type to test format
+interface Provider {
+  id: string;
+  business_name: string;
+  provider_type: string;
+  address: string;
+  city: string | null;
+  description: string | null;
+  accessibility_features: string[] | null;
+  home_visit_available: boolean;
+  is_emergency: boolean;
+  verification_status: string;
+  phone: string;
+  avatar_url: string | null;
+  cover_image_url: string | null;
+  latitude: number | null;
+  longitude: number | null;
+}
 
 // Helper function to check if provider matches search query
 const matchesSearchQuery = (provider: Provider, query: string): boolean => {
