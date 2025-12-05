@@ -164,7 +164,7 @@ describe('MapPage Filter Synchronization', () => {
             const matchesSearch = !filters.searchQuery || 
               provider.businessName.toLowerCase().includes(filters.searchQuery.toLowerCase()) ||
               provider.address.toLowerCase().includes(filters.searchQuery.toLowerCase())
-            const hasCoordinates = provider.latitude && provider.longitude
+            const hasCoordinates = provider.latitude != null && provider.longitude != null
             return matchesCategory && matchesSearch && hasCoordinates
           })
           
@@ -172,6 +172,12 @@ describe('MapPage Filter Synchronization', () => {
           filtered.forEach(provider => {
             if (filters.selectedCategory) {
               expect(provider.providerType).toBe(filters.selectedCategory)
+            }
+            if (filters.searchQuery) {
+              const matchesSearch = 
+                provider.businessName.toLowerCase().includes(filters.searchQuery.toLowerCase()) ||
+                provider.address.toLowerCase().includes(filters.searchQuery.toLowerCase())
+              expect(matchesSearch).toBe(true)
             }
             expect(provider.latitude).toBeDefined()
             expect(provider.longitude).toBeDefined()
@@ -182,5 +188,4 @@ describe('MapPage Filter Synchronization', () => {
       ),
       { numRuns: 100 }
     )
-  })
-})
+  })})

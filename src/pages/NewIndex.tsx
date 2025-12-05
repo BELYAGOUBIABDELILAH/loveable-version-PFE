@@ -29,11 +29,11 @@ export const NewIndex = () => {
             longitude: position.coords.longitude,
           });
         },
-        () => {
+        (error) => {
+          console.error('Geolocation error:', error.code, error.message);
           // Fallback vers les coordonnées de Sidi Bel Abbès
           setUserLocation(defaultLocation);
-        },
-        {
+        },        {
           timeout: 5000,
           maximumAge: 300000, // 5 minutes cache
         }

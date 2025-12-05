@@ -100,11 +100,14 @@ export const SearchResults = ({ providers, viewMode, searchQuery }: SearchResult
         if (ads.length >= 5) break; // Limit to 5 ads
         
         const data = docSnap.data();
-        const endDate = data.endDate?.toDate ? data.endDate.toDate() : new Date(data.endDate);
+        // Handle missing endDate as "no expiration"
+        let endDate: Date | null = null;
+        if (data.endDate) {
+          endDate = data.endDate.toDate ? data.endDate.toDate() : new Date(data.endDate);
+        }
         
-        // Filter by end date
-        if (endDate >= today) {
-          ads.push({
+        // Filter by end date (null means no expiration)
+        if (!endDate || endDate >= today) {          ads.push({
             id: docSnap.id,
             provider_id: data.providerId,
             title: data.title,

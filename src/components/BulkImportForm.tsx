@@ -226,6 +226,7 @@ export default function BulkImportForm() {
             address: row.address.trim(),
             email: row.email?.trim() || undefined,
             city: row.city?.trim() || undefined,
+            specialty: row.specialty?.trim() || undefined,
             description: row.description?.trim() || undefined,
             website: row.website?.trim() || undefined,
             verificationStatus: 'verified', // Admin imported = auto-verified
@@ -235,7 +236,6 @@ export default function BulkImportForm() {
             homeVisitAvailable: homeVisitAvailable,
             isEmergency: false
           });
-
           results.push({
             success: true,
             row: i + 1,

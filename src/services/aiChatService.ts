@@ -6,9 +6,12 @@
  */
 
 // Use Firebase Functions URL if available, otherwise fall back to configured URL
+if (!import.meta.env.VITE_AI_CHAT_URL && !import.meta.env.VITE_FIREBASE_PROJECT_ID) {
+  console.warn('Neither VITE_AI_CHAT_URL nor VITE_FIREBASE_PROJECT_ID is set. Using default project ID.');
+}
+
 const CHAT_URL = import.meta.env.VITE_AI_CHAT_URL || 
   `https://${import.meta.env.VITE_FIREBASE_PROJECT_ID || 'cityhealth-ec7e7'}.cloudfunctions.net/aiChat`;
-
 type Message = { role: "user" | "assistant"; content: string };
 
 export async function streamChat({

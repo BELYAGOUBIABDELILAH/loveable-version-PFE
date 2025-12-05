@@ -128,7 +128,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (OFFLINE_MODE) {
         // Offline mode: use localStorage
         const users = getMockUsers();
-        const foundUser = users.find(u => u.email === email);
+        // Note: In offline mode, we don't store/validate passwords
+        // This is intentional for demo purposes
+        const foundUser = users.find(u => u.email.toLowerCase() === email.toLowerCase());
         
         if (!foundUser) {
           throw new Error('Email ou mot de passe incorrect');
@@ -136,8 +138,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
         setUser(foundUser);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(foundUser));
-        toast.success('Connexion réussie!');
-      } else {
+        toast.success('Connexion réussie!');      } else {
         // Online mode: use Firebase Auth
         const firebaseUser = await firebaseSignIn(email, password);
         const appUser = await firebaseUserToUser(firebaseUser);

@@ -124,9 +124,12 @@ const EmergencyPage = () => {
             is_claimed: p.isClaimed,
             accessibility_features: p.accessibilityFeatures || [],
             home_visit_available: p.homeVisitAvailable,
-            created_at: p.createdAt.toDate().toISOString(),
-            updated_at: p.updatedAt.toDate().toISOString(),
-            distance: Math.round((1 + index * 1.5) * 10) / 10,
+            created_at: p.createdAt?.toDate?.() 
+              ? p.createdAt.toDate().toISOString() 
+              : String(p.createdAt),
+            updated_at: p.updatedAt?.toDate?.() 
+              ? p.updatedAt.toDate().toISOString() 
+              : String(p.updatedAt),            distance: Math.round((1 + index * 1.5) * 10) / 10,
           }));
         }
 

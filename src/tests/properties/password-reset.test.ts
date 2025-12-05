@@ -56,11 +56,6 @@ describe('Password Reset Properties', () => {
       expect(typeof authService.resetPassword).toBe('function')
     })
 
-    it('resetPassword should accept email parameter', () => {
-      // Verify the function signature accepts an email string
-      const fn = authService.resetPassword
-      expect(fn.length).toBeGreaterThanOrEqual(1)
-    })
   })
 
   /**

@@ -22,14 +22,12 @@ const StepCard = ({
   number, 
   icon, 
   title, 
-  description,
-  color = "primary" 
+  description
 }: { 
   number: number,
   icon: React.ReactNode, 
   title: string, 
-  description: string,
-  color?: string 
+  description: string
 }) => {
   return (
     <div className="relative">
@@ -48,7 +46,6 @@ const StepCard = ({
     </div>
   );
 };
-
 const FeatureItem = ({ icon, text }: { icon: React.ReactNode, text: string }) => (
   <div className="flex items-start gap-3">
     <div className="w-6 h-6 mt-1 flex-shrink-0 text-primary">

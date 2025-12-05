@@ -181,7 +181,7 @@ describe('Legacy Code Removal Properties', () => {
   })
 
   test('Property 66: Package.json should not contain Supabase dependencies', () => {
-    const packageJsonPath = path.resolve(__dirname, '../../../../package.json')
+    const packageJsonPath = path.resolve(__dirname, '../../../package.json')
     
     let packageJson: any = {}
     try {
@@ -202,9 +202,8 @@ describe('Legacy Code Removal Properties', () => {
     
     expect(supabaseDeps).toEqual([])
   })
-
   test('Property 66: Package.json should not contain Google Maps dependencies', () => {
-    const packageJsonPath = path.resolve(__dirname, '../../../../package.json')
+    const packageJsonPath = path.resolve(__dirname, '../../../package.json')
     
     let packageJson: any = {}
     try {
@@ -224,5 +223,4 @@ describe('Legacy Code Removal Properties', () => {
     )
     
     expect(googleMapsDeps).toEqual([])
-  })
-})
+  })})

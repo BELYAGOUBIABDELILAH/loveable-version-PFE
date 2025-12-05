@@ -16,13 +16,8 @@ const projectRoot = process.cwd()
 
 // Helper function to read file content
 function readFileContent(filePath: string): string {
-  try {
-    return fs.readFileSync(filePath, 'utf-8')
-  } catch (e) {
-    return ''
-  }
+  return fs.readFileSync(filePath, 'utf-8')
 }
-
 describe('Header Scroll Behavior Properties', () => {
   /**
    * Property 69: Header scroll behavior

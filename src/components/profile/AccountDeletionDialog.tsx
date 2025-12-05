@@ -67,6 +67,9 @@ export function AccountDeletionDialog({
 
       await deleteAccount(userId);
 
+      // Sign out the user before showing success
+      await auth.signOut();
+
       toast({
         title: 'Compte supprimé',
         description: 'Votre compte a été supprimé avec succès.',
@@ -74,8 +77,7 @@ export function AccountDeletionDialog({
 
       // Close dialog and redirect to homepage
       onOpenChange(false);
-      navigate('/');
-    } catch (err: any) {
+      navigate('/');    } catch (err: any) {
       console.error('Account deletion error:', err);
       setError(err.message || 'Une erreur est survenue lors de la suppression');
       

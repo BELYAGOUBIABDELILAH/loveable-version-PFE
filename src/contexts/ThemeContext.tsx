@@ -22,8 +22,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const toggleTheme = () => {
     // Dark mode has been removed per Requirements 20.8
     // This function is kept for API compatibility but does nothing
+    if (process.env.NODE_ENV !== 'production') {
+      console.warn('toggleTheme is deprecated: Dark mode has been removed per Requirements 20.8');
+    }
   };
-
   return (
     <ThemeContext.Provider value={{ theme, toggleTheme }}>
       {children}

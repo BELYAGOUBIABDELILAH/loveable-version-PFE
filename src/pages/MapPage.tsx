@@ -84,14 +84,19 @@ const MapPage = () => {
         ? `https://www.google.com/maps/dir/?api=1&origin=${userLocation.lat},${userLocation.lng}&destination=${provider.latitude},${provider.longitude}`
         : `https://www.google.com/maps/dir/?api=1&destination=${provider.latitude},${provider.longitude}`;
       window.open(url, '_blank');
+      addToast({
+        type: 'success',
+        title: 'Itinéraire',
+        message: `Ouverture de l'itinéraire vers ${provider.businessName}`
+      });
+    } else {
+      addToast({
+        type: 'error',
+        title: 'Erreur',
+        message: 'Coordonnées manquantes pour ce prestataire'
+      });
     }
-    addToast({
-      type: 'success',
-      title: 'Itinéraire',
-      message: `Ouverture de l'itinéraire vers ${provider.businessName}`
-    });
   };
-
   // Filter providers based on search and category
   const filteredProviders = providers.filter(provider => {
     const matchesCategory = !selectedCategory || provider.providerType === selectedCategory;

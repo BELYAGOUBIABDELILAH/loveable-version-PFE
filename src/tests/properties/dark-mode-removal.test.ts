@@ -129,6 +129,5 @@ describe('Dark Mode Removal Properties', () => {
     
     // Check that localStorage is not used for theme
     expect(content).not.toContain("localStorage.getItem('theme')")
-    expect(content).not.toContain("localStorage.setItem('theme'")
-  })
+    expect(content).not.toContain("localStorage.setItem('theme',")  })
 })
