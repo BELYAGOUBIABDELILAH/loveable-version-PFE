@@ -87,8 +87,9 @@ export default function ProviderRegister() {
       if (OFFLINE_MODE) {
         // Store pending registration in localStorage for demo
         const pendingRegistrations = JSON.parse(localStorage.getItem('ch_pending_registrations') || '[]');
+        const { accountPassword, ...safeFormData } = formData;
         pendingRegistrations.push({
-          ...formData,
+          ...safeFormData,
           id: Date.now().toString(),
           status: 'pending',
           submittedAt: new Date().toISOString(),
@@ -101,8 +102,7 @@ export default function ProviderRegister() {
         });
         
         setTimeout(() => navigate('/'), 2000);
-        return;
-      }
+        return;      }
       
       // Upload license document if provided
       let licenseUrl: string | undefined;
@@ -135,7 +135,7 @@ export default function ProviderRegister() {
       const providerData = {
         userId: userId || '',
         businessName: formData.providerName,
-        providerType: formData.type as 'doctor' | 'clinic' | 'hospital' | 'pharmacy' | 'laboratory',
+        providerType: (formData.type === 'lab' ? 'laboratory' : formData.type) as 'doctor' | 'clinic' | 'hospital' | 'pharmacy' | 'laboratory',
         specialtyId: formData.specialty || undefined,
         phone: formData.phone,
         email: formData.email,
@@ -152,8 +152,7 @@ export default function ProviderRegister() {
         licenseDocumentUrl: licenseUrl,
         languages: formData.languages,
         schedule: formData.schedule,
-      };
-      
+      };      
       await createProvider(providerData);
       
       // If user was already authenticated but not a provider, update their role
