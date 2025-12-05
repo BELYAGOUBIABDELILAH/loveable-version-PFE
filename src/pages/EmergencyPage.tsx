@@ -1,28 +1,89 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Ambulance, MapPin, PhoneCall, Clock, Filter } from "lucide-react";
+import { AlertTriangle, Ambulance, MapPin, PhoneCall, Clock, Filter, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
+import { supabase } from "@/integrations/supabase/client";
+import { Tables } from "@/integrations/supabase/types";
 
-const mockServices = [
-  { id: 1, name: "CHU Abdelkader", type: "Hospital", distance: 2.1, open: true, phone: "041 12 34 56" },
-  { id: 2, name: "Clinique El Amal", type: "Clinic", distance: 4.7, open: true, phone: "041 22 11 00" },
-  { id: 3, name: "Pharmacie de garde", type: "Pharmacy", distance: 1.2, open: true, phone: "041 55 66 77" },
-  { id: 4, name: "Urgences Cardiologie", type: "Hospital", distance: 6.3, open: true, phone: "041 33 22 11" },
-];
+type Provider = Tables<"providers">;
+
+interface EmergencyProvider extends Provider {
+  distance?: number; // Will be calculated based on location
+}
 
 const EmergencyPage = () => {
+  const [providers, setProviders] = useState<EmergencyProvider[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [type, setType] = useState<string>("all");
+  const [q, setQ] = useState("");
+
   useEffect(() => {
     document.title = "CityHealth – Emergency Services";
   }, []);
 
-  const [type, setType] = useState<string>("all");
-  const [q, setQ] = useState("");
+  // Fetch emergency providers
+  useEffect(() => {
+    const fetchEmergencyProviders = async () => {
+      try {
+        setLoading(true);
+        
+        const { data, error } = await supabase
+          .from("providers")
+          .select("*")
+          .eq("is_emergency", true)
+          .eq("verification_status", "verified")
+          .order("business_name");
+
+        if (error) throw error;
+
+        // Calculate mock distances (in a real app, use geolocation)
+        const providersWithDistance = (data || []).map((provider, index) => ({
+          ...provider,
+          distance: Math.round((1 + index * 1.5) * 10) / 10, // Mock distance
+        }));
+
+        setProviders(providersWithDistance);
+      } catch (error) {
+        console.error("Error fetching emergency providers:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchEmergencyProviders();
+
+    // Set up real-time subscription for updates
+    const channel = supabase
+      .channel("emergency-providers")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "providers",
+          filter: "is_emergency=eq.true",
+        },
+        () => {
+          // Refetch when changes occur
+          fetchEmergencyProviders();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const filtered = useMemo(() => {
-    return mockServices.filter(s => (type === "all" || s.type === type) && s.name.toLowerCase().includes(q.toLowerCase()));
-  }, [type, q]);
+    return providers.filter(
+      (p) =>
+        (type === "all" || p.provider_type === type) &&
+        p.business_name.toLowerCase().includes(q.toLowerCase())
+    );
+  }, [providers, type, q]);
 
   return (
     <main className="pt-24 pb-16 px-4 max-w-6xl mx-auto">
@@ -51,36 +112,64 @@ const EmergencyPage = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="Hospital">Hospitals</SelectItem>
-                  <SelectItem value="Clinic">Clinics</SelectItem>
-                  <SelectItem value="Pharmacy">On-duty Pharmacies</SelectItem>
+                  <SelectItem value="hospital">Hospitals</SelectItem>
+                  <SelectItem value="clinic">Clinics</SelectItem>
+                  <SelectItem value="pharmacy">On-duty Pharmacies</SelectItem>
+                  <SelectItem value="doctor">Doctors</SelectItem>
                 </SelectContent>
               </Select>
               <Input placeholder="Search service…" value={q} onChange={(e) => setQ(e.target.value)} />
             </CardContent>
           </Card>
 
-          <div className="space-y-3">
-            {filtered.map((s) => (
-              <Card key={s.id} className="glass-card hover-lift">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold">{s.name}</span>
-                        <span className="verified-badge">OPEN</span>
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <Card className="glass-card">
+              <CardContent className="p-8 text-center text-muted-foreground">
+                No emergency services found
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-3">
+              {filtered.map((provider) => (
+                <Card key={provider.id} className="glass-card hover-lift cursor-pointer" onClick={() => window.location.href = `/provider/${provider.id}`}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold">{provider.business_name}</span>
+                          <span className="verified-badge">24/7</span>
+                        </div>
+                        <div className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
+                          <Ambulance className="h-4 w-4" /> {provider.provider_type}
+                          {provider.distance && (
+                            <span className="inline-flex items-center gap-1">
+                              <MapPin className="h-4 w-4" /> {provider.distance} km
+                            </span>
+                          )}
+                        </div>
+                        {provider.address && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {provider.address}
+                          </div>
+                        )}
                       </div>
-                      <div className="text-sm text-muted-foreground flex items-center gap-2 mt-1">
-                        <Ambulance className="h-4 w-4" /> {s.type}
-                        <span className="inline-flex items-center gap-1"><MapPin className="h-4 w-4" /> {s.distance} km</span>
-                      </div>
+                      <a 
+                        className="text-sm underline" 
+                        href={`tel:${provider.phone}`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {provider.phone}
+                      </a>
                     </div>
-                    <a className="text-sm underline" href={`tel:${s.phone}`}>{s.phone}</a>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Right: Map Placeholder */}

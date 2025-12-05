@@ -6,8 +6,30 @@ import { TestimonialsSlider } from '@/components/homepage/TestimonialsSlider';
 import { ProviderCTA } from '@/components/homepage/ProviderCTA';
 import { ModernFooter } from '@/components/homepage/ModernFooter';
 import { ScrollToTop } from '@/components/ScrollToTop';
+import MedicalAdCarousel from '@/components/MedicalAdCarousel';
+import { SmartSuggestions } from '@/components/SmartSuggestions';
+import { useState, useEffect } from 'react';
 
 export const NewIndex = () => {
+  const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | undefined>();
+
+  // Get user location for smart suggestions
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          });
+        },
+        (error) => {
+          console.log('Location access denied or unavailable:', error);
+        }
+      );
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header - Sticky Navigation */}
@@ -18,6 +40,20 @@ export const NewIndex = () => {
       
       {/* Quick Search Section */}
       <QuickSearchSection />
+      
+      {/* Medical Ads Carousel */}
+      <section className="py-16 px-4 bg-secondary/20">
+        <div className="max-w-7xl mx-auto">
+          <MedicalAdCarousel />
+        </div>
+      </section>
+
+      {/* Smart Suggestions */}
+      <section className="py-16 px-4">
+        <div className="max-w-7xl mx-auto">
+          <SmartSuggestions userLocation={userLocation} />
+        </div>
+      </section>
       
       {/* Featured Providers */}
       <FeaturedProviders />

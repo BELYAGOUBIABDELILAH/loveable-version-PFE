@@ -25,6 +25,10 @@ export interface CityHealthProvider {
   lng: number
   languages: Lang[]
   description: string
+  accessibility_features: string[]
+  home_visit_available: boolean
+  is_preloaded: boolean
+  is_claimed: boolean
 }
 
 export const SPECIALTIES = [
@@ -54,6 +58,16 @@ export const AREAS = [
   'Sidi Bel Abbès Ouest',
   'Périphérie Nord',
   'Périphérie Sud',
+]
+
+export const ACCESSIBILITY_FEATURES = [
+  'wheelchair',
+  'parking', 
+  'elevator',
+  'ramp',
+  'accessible_restroom',
+  'braille',
+  'sign_language'
 ]
 
 const STORAGE_KEYS = {
@@ -129,6 +143,23 @@ export function generateMockProviders(count = 50): CityHealthProvider[] {
     const isOpen = i % 5 !== 0
     const area = randomFrom(AREAS, i)
     const languages: Lang[] = (() => { const arr: Lang[] = ['fr']; if (i % 2 === 0) arr.push('ar'); if (i % 5 === 0) arr.push('en'); return arr; })()
+    
+    // Generate accessibility features (0-3 features per provider)
+    const accessibilityFeatures: string[] = []
+    const featureCount = i % 4 // 0-3 features
+    for (let j = 0; j < featureCount; j++) {
+      const feature = ACCESSIBILITY_FEATURES[(i + j) % ACCESSIBILITY_FEATURES.length]
+      if (!accessibilityFeatures.includes(feature)) {
+        accessibilityFeatures.push(feature)
+      }
+    }
+    
+    // Home visit availability (more likely for doctors, less for hospitals/labs)
+    const homeVisitAvailable = type === 'doctor' ? (i % 3 === 0) : (type === 'pharmacy' ? false : (i % 8 === 0))
+
+    // Profile claiming status (some providers are preloaded, some are claimed)
+    const isPreloaded = i % 7 === 0 // About 14% of providers are preloaded
+    const isClaimed = isPreloaded ? (i % 3 === 0) : false // Some preloaded profiles are already claimed
 
     const item: CityHealthProvider = {
       id: (i + 1).toString(),
@@ -151,6 +182,10 @@ export function generateMockProviders(count = 50): CityHealthProvider[] {
       lng,
       languages,
       description: makeDescription(type),
+      accessibility_features: accessibilityFeatures,
+      home_visit_available: homeVisitAvailable,
+      is_preloaded: isPreloaded,
+      is_claimed: isClaimed,
     }
     list.push(item)
   }

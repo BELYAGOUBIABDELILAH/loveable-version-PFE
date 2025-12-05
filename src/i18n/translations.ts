@@ -96,6 +96,22 @@ export interface Translations {
     placeholder: string;
     disclaimer: string;
   };
+
+  // Medical Ads
+  medicalAds: {
+    title: string;
+    subtitle: string;
+    adLabel: string;
+  };
+
+  // Smart Suggestions
+  suggestions: {
+    title: string;
+    dismiss: string;
+    popular: string;
+    nearby: string;
+    relevant: string;
+  };
 }
 
 export const translations: Record<Language, Translations> = {
@@ -182,6 +198,18 @@ export const translations: Record<Language, Translations> = {
       placeholder: 'Posez votre question...',
       disclaimer: 'Ceci est un assistant virtuel. Consultez toujours un professionnel de santé.',
     },
+    medicalAds: {
+      title: 'Annonces Médicales',
+      subtitle: 'Découvrez les services mis en avant par nos professionnels',
+      adLabel: 'Annonce',
+    },
+    suggestions: {
+      title: 'Suggestions intelligentes',
+      dismiss: 'Masquer les suggestions',
+      popular: 'Populaire',
+      nearby: 'À proximité',
+      relevant: 'Pertinent',
+    },
   },
   
   ar: {
@@ -267,6 +295,18 @@ export const translations: Record<Language, Translations> = {
       placeholder: 'اسأل سؤالك...',
       disclaimer: 'هذا مساعد افتراضي. استشر دائمًا أخصائي الرعاية الصحية.',
     },
+    medicalAds: {
+      title: 'الإعلانات الطبية',
+      subtitle: 'اكتشف الخدمات المميزة من المهنيين لدينا',
+      adLabel: 'إعلان',
+    },
+    suggestions: {
+      title: 'اقتراحات ذكية',
+      dismiss: 'إخفاء الاقتراحات',
+      popular: 'شائع',
+      nearby: 'قريب',
+      relevant: 'ذو صلة',
+    },
   },
 
   en: {
@@ -351,6 +391,18 @@ export const translations: Record<Language, Translations> = {
       title: 'AI Health Assistant',
       placeholder: 'Ask your question...',
       disclaimer: 'This is a virtual assistant. Always consult a healthcare professional.',
+    },
+    medicalAds: {
+      title: 'Medical Announcements',
+      subtitle: 'Discover featured services from our professionals',
+      adLabel: 'Ad',
+    },
+    suggestions: {
+      title: 'Smart Suggestions',
+      dismiss: 'Hide suggestions',
+      popular: 'Popular',
+      nearby: 'Nearby',
+      relevant: 'Relevant',
     },
   },
 };

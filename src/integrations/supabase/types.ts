@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_logs: {
+        Row: {
+          id: string
+          admin_id: string
+          action: string
+          entity_type: string
+          entity_id: string
+          changes: Json | null
+          timestamp: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          admin_id: string
+          action: string
+          entity_type: string
+          entity_id: string
+          changes?: Json | null
+          timestamp?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          admin_id?: string
+          action?: string
+          entity_type?: string
+          entity_id?: string
+          changes?: Json | null
+          timestamp?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       analytics_events: {
         Row: {
           created_at: string | null
@@ -138,6 +171,126 @@ export type Database = {
           },
         ]
       }
+      favorites: {
+        Row: {
+          id: string
+          user_id: string
+          provider_id: string
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          provider_id: string
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          provider_id?: string
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "favorites_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      medical_ads: {
+        Row: {
+          id: string
+          provider_id: string
+          title: string
+          content: string
+          image_url: string | null
+          status: string
+          display_priority: number | null
+          start_date: string | null
+          end_date: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          provider_id: string
+          title: string
+          content: string
+          image_url?: string | null
+          status?: string
+          display_priority?: number | null
+          start_date?: string | null
+          end_date?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          provider_id?: string
+          title?: string
+          content?: string
+          image_url?: string | null
+          status?: string
+          display_priority?: number | null
+          start_date?: string | null
+          end_date?: string | null
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "medical_ads_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profile_claims: {
+        Row: {
+          id: string
+          provider_id: string
+          user_id: string
+          status: string
+          documentation: string[] | null
+          notes: string | null
+          reviewed_by: string | null
+          reviewed_at: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          provider_id: string
+          user_id: string
+          status?: string
+          documentation?: string[] | null
+          notes?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          provider_id?: string
+          user_id?: string
+          status?: string
+          documentation?: string[] | null
+          notes?: string | null
+          reviewed_by?: string | null
+          reviewed_at?: string | null
+          created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profile_claims_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           body: string
@@ -221,6 +374,10 @@ export type Database = {
             | Database["public"]["Enums"]["verification_status"]
             | null
           website: string | null
+          is_preloaded: boolean | null
+          is_claimed: boolean | null
+          accessibility_features: string[] | null
+          home_visit_available: boolean | null
         }
         Insert: {
           address: string
@@ -244,6 +401,10 @@ export type Database = {
             | Database["public"]["Enums"]["verification_status"]
             | null
           website?: string | null
+          is_preloaded?: boolean | null
+          is_claimed?: boolean | null
+          accessibility_features?: string[] | null
+          home_visit_available?: boolean | null
         }
         Update: {
           address?: string
@@ -267,6 +428,10 @@ export type Database = {
             | Database["public"]["Enums"]["verification_status"]
             | null
           website?: string | null
+          is_preloaded?: boolean | null
+          is_claimed?: boolean | null
+          accessibility_features?: string[] | null
+          home_visit_available?: boolean | null
         }
         Relationships: [
           {

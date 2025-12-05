@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Stethoscope, Pill, Building, FlaskConical, Star, Check, Accessibility, CreditCard } from 'lucide-react';
+import { X, Stethoscope, Pill, Building, FlaskConical, Star, Check, Accessibility, CreditCard, Home } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -9,6 +9,7 @@ import { Slider } from '@/components/ui/slider';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { FilterState } from '@/pages/SearchPage';
+import { ACCESSIBILITY_FEATURES } from '@/data/providers';
 
 interface AdvancedFiltersProps {
   filters: FilterState;
@@ -43,6 +44,26 @@ export const AdvancedFilters = ({ filters, setFilters, showFilters }: AdvancedFi
     updateFilter('categories', newCategories);
   };
 
+  const toggleAccessibilityFeature = (feature: string) => {
+    const newFeatures = filters.accessibility_features.includes(feature)
+      ? filters.accessibility_features.filter(f => f !== feature)
+      : [...filters.accessibility_features, feature];
+    updateFilter('accessibility_features', newFeatures);
+  };
+
+  const getAccessibilityFeatureLabel = (feature: string) => {
+    const labels: Record<string, string> = {
+      wheelchair: 'Wheelchair accessible',
+      parking: 'Accessible parking',
+      elevator: 'Elevator access',
+      ramp: 'Wheelchair ramp',
+      accessible_restroom: 'Accessible restroom',
+      braille: 'Braille signage',
+      sign_language: 'Sign language support'
+    };
+    return labels[feature] || feature;
+  };
+
   const clearAllFilters = () => {
     setFilters({
       categories: [],
@@ -54,7 +75,9 @@ export const AdvancedFilters = ({ filters, setFilters, showFilters }: AdvancedFi
       emergencyServices: false,
       wheelchairAccessible: false,
       insuranceAccepted: false,
-      priceRange: [0, 500]
+      priceRange: [0, 500],
+      accessibility_features: [],
+      home_visit_available: false
     });
   };
 
@@ -65,7 +88,9 @@ export const AdvancedFilters = ({ filters, setFilters, showFilters }: AdvancedFi
     (filters.emergencyServices ? 1 : 0) +
     (filters.wheelchairAccessible ? 1 : 0) +
     (filters.insuranceAccepted ? 1 : 0) +
-    (filters.availability !== 'any' ? 1 : 0);
+    (filters.availability !== 'any' ? 1 : 0) +
+    filters.accessibility_features.length +
+    (filters.home_visit_available ? 1 : 0);
 
   if (!showFilters) return null;
 
@@ -230,6 +255,41 @@ export const AdvancedFilters = ({ filters, setFilters, showFilters }: AdvancedFi
                   Insurance accepted
                 </Label>
               </div>
+
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="home-visit"
+                  checked={filters.home_visit_available}
+                  onCheckedChange={(checked) => updateFilter('home_visit_available', checked)}
+                />
+                <Label htmlFor="home-visit" className="flex items-center gap-2 cursor-pointer font-normal">
+                  <Home size={16} className="text-primary" />
+                  Home visits available
+                </Label>
+              </div>
+            </div>
+          </div>
+
+          {/* Accessibility Features */}
+          <div>
+            <Label className="text-sm font-medium">Accessibility Features</Label>
+            <div className="mt-2 space-y-2">
+              {ACCESSIBILITY_FEATURES.map(feature => (
+                <div key={feature} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`accessibility-${feature}`}
+                    checked={filters.accessibility_features.includes(feature)}
+                    onCheckedChange={() => toggleAccessibilityFeature(feature)}
+                  />
+                  <Label
+                    htmlFor={`accessibility-${feature}`}
+                    className="flex items-center gap-2 cursor-pointer font-normal"
+                  >
+                    <Accessibility size={16} className="text-primary" />
+                    {getAccessibilityFeatureLabel(feature)}
+                  </Label>
+                </div>
+              ))}
             </div>
           </div>
 
