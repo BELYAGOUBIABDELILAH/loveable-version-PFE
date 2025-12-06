@@ -10,16 +10,17 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Switch } from '@/components/ui/switch';
 import { 
-  Eye, Phone, MapPin, TrendingUp, Calendar, Star, 
-  Upload, Settings, BarChart3, Users, Clock, Car, Building, ShieldCheck, Hand, Home, FileText, Plus, Accessibility, Loader2, X, Image as ImageIcon, Check, User
+  Eye, Phone, TrendingUp, Calendar, Star, 
+  Upload, Settings, BarChart3, Clock, Car, Building, ShieldCheck, Hand, Home, FileText, Plus, Accessibility, Loader2, X, Check, User
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { ACCESSIBILITY_FEATURES } from '@/data/providers';
+import { ACCESSIBILITY_FEATURES, SPECIALTIES } from '@/data/providers';
 import MedicalAdForm from '@/components/MedicalAdForm';
-import { collection, query, where, getDocs, doc, updateDoc, Timestamp } from 'firebase/firestore';
+import VerificationRequestCard from '@/components/provider/VerificationRequestCard';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db, auth } from '@/integrations/firebase/client';
 import { COLLECTIONS, Provider, Appointment } from '@/integrations/firebase/types';
-import { updateProvider, getProviderById } from '@/integrations/firebase/services/providerService';
+import { updateProvider } from '@/integrations/firebase/services/providerService';
 import { uploadMultipleFiles, validateFile } from '@/integrations/firebase/services/storageService';
 import { getAppointmentsByProvider, updateAppointmentStatus, cancelAppointment } from '@/integrations/firebase/services/appointmentService';
 import { OFFLINE_MODE } from '@/config/app';
@@ -112,6 +113,9 @@ export default function ProviderDashboard() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
   const [updatingAppointmentId, setUpdatingAppointmentId] = useState<string | null>(null);
+  
+  // Provider data for verification card
+  const [providerData, setProviderData] = useState<Provider | null>(null);
 
   // Fetch provider data from Firebase on mount
   useEffect(() => {
@@ -137,23 +141,59 @@ export default function ProviderDashboard() {
 
         if (!providerSnapshot.empty) {
           const providerDoc = providerSnapshot.docs[0];
-          const providerData = providerDoc.data();
-          setProviderId(providerDoc.id);
+          const providerDocData = providerDoc.data();
+          const providerIdValue = providerDoc.id;
+          setProviderId(providerIdValue);
           
+          // Set provider data for VerificationRequestCard
+          setProviderData({
+            id: providerIdValue,
+            userId: providerDocData.userId || currentUser.uid,
+            businessName: providerDocData.businessName || '',
+            providerType: providerDocData.providerType || 'doctor',
+            phone: providerDocData.phone || '',
+            email: providerDocData.email,
+            address: providerDocData.address || '',
+            city: providerDocData.city,
+            latitude: providerDocData.latitude,
+            longitude: providerDocData.longitude,
+            description: providerDocData.description,
+            avatarUrl: providerDocData.avatarUrl,
+            coverImageUrl: providerDocData.coverImageUrl,
+            website: providerDocData.website,
+            verificationStatus: providerDocData.verificationStatus || 'pending',
+            isEmergency: providerDocData.isEmergency || false,
+            isPreloaded: providerDocData.isPreloaded || false,
+            isClaimed: providerDocData.isClaimed || false,
+            accessibilityFeatures: providerDocData.accessibilityFeatures || [],
+            homeVisitAvailable: providerDocData.homeVisitAvailable || false,
+            photos: providerDocData.photos || [],
+            createdAt: providerDocData.createdAt,
+            updatedAt: providerDocData.updatedAt,
+          } as Provider);
+          
+          // Resolve specialty name from specialtyId
+          // specialtyId may contain the specialty name directly (from ProviderRegister)
+          // or could be a UUID in legacy data - check if it's in SPECIALTIES list
+          const specialtyValue = providerDocData.specialtyId || '';
+          const specialtyName = SPECIALTIES.includes(specialtyValue)
+            ? specialtyValue
+            : ''; // Fall back to empty string if not a valid specialty name
+
           setProfile({
-            name: providerData.businessName || '',
-            specialty: providerData.specialtyId || '',
-            phone: providerData.phone || '',
-            email: providerData.email || '',
-            address: providerData.address || '',
-            city: providerData.city || '',
-            description: providerData.description || '',
+            name: providerDocData.businessName || '',
+            specialty: specialtyName,
+            phone: providerDocData.phone || '',
+            email: providerDocData.email || '',
+            address: providerDocData.address || '',
+            city: providerDocData.city || '',
+            description: providerDocData.description || '',
             schedule: '',
-            accessibility_features: providerData.accessibilityFeatures || [],
-            home_visit_available: providerData.homeVisitAvailable || false,
-            photos: providerData.photos || [],
-            avatar_url: providerData.avatarUrl || '',
-            website: providerData.website || '',
+            accessibility_features: providerDocData.accessibilityFeatures || [],
+            home_visit_available: providerDocData.homeVisitAvailable || false,
+            photos: providerDocData.photos || [],
+            avatar_url: providerDocData.avatarUrl || '',
+            website: providerDocData.website || '',
           });
         }
       } catch (error) {
@@ -534,6 +574,33 @@ export default function ProviderDashboard() {
     }
   };
 
+  // Handle verification request submitted - refresh provider data
+  const handleVerificationSubmitted = async () => {
+    if (OFFLINE_MODE || !providerId) return;
+    
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+      
+      // Refresh provider data to get updated verification status
+      const providersRef = collection(db, COLLECTIONS.providers);
+      const providerQuery = query(providersRef, where('userId', '==', currentUser.uid));
+      const providerSnapshot = await getDocs(providerQuery);
+      
+      if (!providerSnapshot.empty) {
+        const providerDoc = providerSnapshot.docs[0];
+        const providerDocData = providerDoc.data();
+        
+        setProviderData(prev => prev ? {
+          ...prev,
+          verificationStatus: providerDocData.verificationStatus || 'pending',
+        } : null);
+      }
+    } catch (error) {
+      console.error('Error refreshing provider data:', error);
+    }
+  };
+
   // Fetch medical ads on component mount
   useEffect(() => {
     fetchMedicalAds();
@@ -681,14 +748,23 @@ export default function ProviderDashboard() {
 
           {/* Profile Tab */}
           <TabsContent value="profile">
-            <Card>
-              <CardHeader>
-                <CardTitle>Informations du profil</CardTitle>
-                <CardDescription>
-                  Mettez à jour vos informations publiques
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
+            <div className="space-y-6">
+              {/* Verification Request Card */}
+              {providerData && (
+                <VerificationRequestCard 
+                  provider={providerData}
+                  onRequestSubmitted={handleVerificationSubmitted}
+                />
+              )}
+              
+              <Card>
+                <CardHeader>
+                  <CardTitle>Informations du profil</CardTitle>
+                  <CardDescription>
+                    Mettez à jour vos informations publiques
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
                 <form onSubmit={handleProfileUpdate} className="space-y-6">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -862,6 +938,7 @@ export default function ProviderDashboard() {
                 </form>
               </CardContent>
             </Card>
+            </div>
           </TabsContent>
 
           {/* Appointments Tab */}

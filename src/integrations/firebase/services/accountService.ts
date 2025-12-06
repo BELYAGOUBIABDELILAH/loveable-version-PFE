@@ -14,7 +14,6 @@ import {
   deleteUser,
   reauthenticateWithCredential,
   EmailAuthProvider,
-  User,
 } from 'firebase/auth';
 import {
   doc,
@@ -24,8 +23,8 @@ import {
   where,
   getDocs,
   writeBatch,
-  updateDoc,
   Timestamp,
+  DocumentReference,
 } from 'firebase/firestore';
 import { auth, db } from '../client';
 import { COLLECTIONS } from '../types';
@@ -125,34 +124,72 @@ async function deleteUserRole(userId: string): Promise<void> {
 }
 
 /**
+ * Helper to chunk an array into smaller arrays of specified size
+ */
+function chunkArray<T>(array: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < array.length; i += chunkSize) {
+    chunks.push(array.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
+
+/**
  * Delete user's chat sessions and messages
+ * 
+ * Optimized implementation that:
+ * 1. Fetches all session IDs first
+ * 2. Bulk fetches messages using 'in' queries (chunked to 10 IDs per query - Firestore limit)
+ * 3. Deletes in batches of 500 operations (Firestore batch limit)
  * 
  * @param userId - The user ID
  */
 async function deleteUserChatData(userId: string): Promise<void> {
-  // Delete chat sessions
+  // Step 1: Fetch all chat sessions for the user
   const sessionsRef = collection(db, COLLECTIONS.chatSessions);
   const sessionsQuery = query(sessionsRef, where('userId', '==', userId));
   const sessionsSnapshot = await getDocs(sessionsQuery);
-  
+
   if (sessionsSnapshot.empty) return;
-  
-  const batch = writeBatch(db);
-  
-  for (const sessionDoc of sessionsSnapshot.docs) {
-    // Delete messages for this session
-    const messagesRef = collection(db, COLLECTIONS.chatMessages);
-    const messagesQuery = query(messagesRef, where('sessionId', '==', sessionDoc.id));
-    const messagesSnapshot = await getDocs(messagesQuery);
-    
-    messagesSnapshot.docs.forEach(msgDoc => {
-      batch.delete(msgDoc.ref);
+
+  // Collect all session IDs and session doc refs
+  const sessionIds = sessionsSnapshot.docs.map((doc) => doc.id);
+  const sessionDocRefs = sessionsSnapshot.docs.map((doc) => doc.ref);
+
+  // Step 2: Bulk fetch all messages using 'in' queries
+  // Firestore 'in' operator supports max 10 values, so chunk session IDs
+  const sessionIdChunks = chunkArray(sessionIds, 10);
+  const messagesRef = collection(db, COLLECTIONS.chatMessages);
+
+  // Parallelize message queries for each chunk
+  const messageQueryPromises = sessionIdChunks.map((chunk) => {
+    const messagesQuery = query(messagesRef, where('sessionId', 'in', chunk));
+    return getDocs(messagesQuery);
+  });
+
+  const messageSnapshots = await Promise.all(messageQueryPromises);
+
+  // Flatten all message doc refs
+  const messageDocRefs = messageSnapshots.flatMap((snapshot) =>
+    snapshot.docs.map((doc) => doc.ref)
+  );
+
+  // Step 3: Combine all docs to delete (messages + sessions)
+  const allDocsToDelete = [...messageDocRefs, ...sessionDocRefs];
+
+  if (allDocsToDelete.length === 0) return;
+
+  // Step 4: Delete in batches of 500 (Firestore batch limit)
+  const deleteChunks = chunkArray(allDocsToDelete, 500);
+
+  // Commit each batch sequentially to avoid overwhelming Firestore
+  for (const chunk of deleteChunks) {
+    const batch = writeBatch(db);
+    chunk.forEach((docRef) => {
+      batch.delete(docRef);
     });
-    
-    batch.delete(sessionDoc.ref);
+    await batch.commit();
   }
-  
-  await batch.commit();
 }
 
 /**

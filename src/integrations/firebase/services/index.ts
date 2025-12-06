@@ -62,3 +62,17 @@ export {
   deleteAccount,
   reauthenticateUser,
 } from './accountService';
+
+// Verification Service
+export {
+  createVerificationRequest,
+  getVerificationStatus,
+  getVerificationByProvider,
+  getAllVerificationsByProvider,
+  updateVerificationStatus,
+} from './verificationService';
+
+export type {
+  VerificationRequest,
+  CreateVerificationRequestData,
+} from './verificationService';

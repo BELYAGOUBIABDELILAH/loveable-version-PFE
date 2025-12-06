@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
-import { MapPin, Navigation, Filter, Phone, Star, Clock, Search } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { MapPin, Navigation, Filter, Phone, Star, Clock, Search, X, CheckCircle, Ambulance, Accessibility, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { useScrollReveal } from '@/hooks/useScrollReveal';
 import { useToastNotifications } from '@/hooks/useToastNotifications';
 import ToastContainer from '@/components/ToastContainer';
@@ -15,14 +18,93 @@ import { getAllProviders } from '@/integrations/firebase/services/providerServic
 import type { Provider } from '@/integrations/firebase/types';
 import SkeletonCard from '@/components/SkeletonCard';
 
+// Filter state interface matching SearchPage
+interface MapFilterState {
+  category: string;
+  searchQuery: string;
+  verifiedOnly: boolean;
+  emergencyServices: boolean;
+  accessibilityFeatures: string[];
+  homeVisitAvailable: boolean;
+}
+
+// Serialize filters to URL params
+const serializeFilters = (filters: MapFilterState): URLSearchParams => {
+  const params = new URLSearchParams();
+  
+  if (filters.category) {
+    params.set('category', filters.category);
+  }
+  if (filters.searchQuery) {
+    params.set('q', filters.searchQuery);
+  }
+  if (filters.verifiedOnly) {
+    params.set('verifiedOnly', 'true');
+  }
+  if (filters.emergencyServices) {
+    params.set('emergencyServices', 'true');
+  }
+  if (filters.accessibilityFeatures.length > 0) {
+    params.set('accessibilityFeatures', filters.accessibilityFeatures.join(','));
+  }
+  if (filters.homeVisitAvailable) {
+    params.set('homeVisitAvailable', 'true');
+  }
+  
+  return params;
+};
+
+// Deserialize URL params to filter state
+const deserializeFilters = (searchParams: URLSearchParams): MapFilterState => {
+  return {
+    category: searchParams.get('category') || '',
+    searchQuery: searchParams.get('q') || '',
+    verifiedOnly: searchParams.get('verifiedOnly') === 'true',
+    emergencyServices: searchParams.get('emergencyServices') === 'true',
+    accessibilityFeatures: searchParams.get('accessibilityFeatures')?.split(',').filter(s => s.length > 0) || [],
+    homeVisitAvailable: searchParams.get('homeVisitAvailable') === 'true',
+  };
+};
+
 const MapPage = () => {
-  const [selectedCategory, setSelectedCategory] = useState('');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
+  // Initialize filters from URL params
+  const [filters, setFilters] = useState<MapFilterState>(() => deserializeFilters(searchParams));
 
   const mapRef = useScrollReveal();
   const { toasts, addToast } = useToastNotifications();
+
+  // Sync filters to URL params
+  useEffect(() => {
+    const params = serializeFilters(filters);
+    setSearchParams(params, { replace: true });
+  }, [filters, setSearchParams]);
+
+  // Update individual filter values
+  const updateFilter = <K extends keyof MapFilterState>(key: K, value: MapFilterState[K]) => {
+    setFilters(prev => ({ ...prev, [key]: value }));
+  };
+
+  // Clear all filters
+  const clearFilters = () => {
+    setFilters({
+      category: '',
+      searchQuery: '',
+      verifiedOnly: false,
+      emergencyServices: false,
+      accessibilityFeatures: [],
+      homeVisitAvailable: false,
+    });
+  };
+
+  // Check if any filters are active
+  const hasActiveFilters = filters.category || filters.searchQuery || 
+    filters.verifiedOnly || filters.emergencyServices || 
+    filters.accessibilityFeatures.length > 0 || filters.homeVisitAvailable;
 
   // Fetch providers from Firestore using TanStack Query
   const { 
@@ -97,15 +179,54 @@ const MapPage = () => {
       });
     }
   };
-  // Filter providers based on search and category
+  // Accessibility features options
+  const accessibilityOptions = [
+    { value: 'wheelchair', label: 'Accès fauteuil roulant' },
+    { value: 'elevator', label: 'Ascenseur' },
+    { value: 'parking', label: 'Parking accessible' },
+    { value: 'braille', label: 'Signalétique braille' },
+  ];
+
+  // Toggle accessibility feature
+  const toggleAccessibilityFeature = (feature: string) => {
+    const current = filters.accessibilityFeatures;
+    if (current.includes(feature)) {
+      updateFilter('accessibilityFeatures', current.filter(f => f !== feature));
+    } else {
+      updateFilter('accessibilityFeatures', [...current, feature]);
+    }
+  };
+
+  // Filter providers based on all filter criteria
   const filteredProviders = providers.filter(provider => {
-    const matchesCategory = !selectedCategory || provider.providerType === selectedCategory;
-    const matchesSearch = !searchQuery || 
-      provider.businessName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (provider.address && provider.address.toLowerCase().includes(searchQuery.toLowerCase()));
+    // Category filter
+    const matchesCategory = !filters.category || provider.providerType === filters.category;
+    
+    // Search query filter
+    const matchesSearch = !filters.searchQuery || 
+      provider.businessName.toLowerCase().includes(filters.searchQuery.toLowerCase()) ||
+      (provider.address && provider.address.toLowerCase().includes(filters.searchQuery.toLowerCase()));
+    
+    // Verified only filter
+    const matchesVerified = !filters.verifiedOnly || provider.verificationStatus === 'verified';
+    
+    // Emergency services filter
+    const matchesEmergency = !filters.emergencyServices || provider.isEmergency;
+    
+    // Accessibility features filter (match ANY selected)
+    const matchesAccessibility = filters.accessibilityFeatures.length === 0 ||
+      filters.accessibilityFeatures.some(feature => 
+        (provider.accessibilityFeatures || []).includes(feature)
+      );
+    
+    // Home visit filter
+    const matchesHomeVisit = !filters.homeVisitAvailable || provider.homeVisitAvailable;
+    
     // Only include providers with valid coordinates
     const hasCoordinates = provider.latitude && provider.longitude;
-    return matchesCategory && matchesSearch && hasCoordinates;
+    
+    return matchesCategory && matchesSearch && matchesVerified && 
+           matchesEmergency && matchesAccessibility && matchesHomeVisit && hasCoordinates;
   });
 
   // Convert to marker props for the map
@@ -142,15 +263,15 @@ const MapPage = () => {
           </h1>
           
           {/* Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Rechercher</label>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={18} />
                 <Input
                   placeholder="Nom ou adresse..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  value={filters.searchQuery}
+                  onChange={(e) => updateFilter('searchQuery', e.target.value)}
                   className="pl-10"
                 />
               </div>
@@ -158,7 +279,7 @@ const MapPage = () => {
             
             <div className="space-y-2">
               <label className="text-sm font-medium">Catégorie</label>
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <Select value={filters.category} onValueChange={(value) => updateFilter('category', value)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Choisir une catégorie" />
                 </SelectTrigger>
@@ -172,13 +293,94 @@ const MapPage = () => {
               </Select>
             </div>
             
+            <div className="flex items-end gap-2">
+              <Button 
+                variant={showAdvancedFilters ? "secondary" : "outline"}
+                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                className="flex-1"
+              >
+                <Filter className="mr-2" size={18} />
+                Filtres
+              </Button>
+              {hasActiveFilters && (
+                <Button variant="ghost" size="icon" onClick={clearFilters} title="Effacer les filtres">
+                  <X size={18} />
+                </Button>
+              )}
+            </div>
+            
             <div className="flex items-end">
               <Button className="w-full" disabled={isLoading}>
-                <Filter className="mr-2" size={18} />
                 {isLoading ? 'Chargement...' : `${filteredProviders.length} prestataire(s)`}
               </Button>
             </div>
           </div>
+
+          {/* Advanced Filters Panel */}
+          {showAdvancedFilters && (
+            <div className="mt-4 p-4 bg-muted/50 rounded-lg space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {/* Verified Only */}
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="verifiedOnly"
+                    checked={filters.verifiedOnly}
+                    onCheckedChange={(checked) => updateFilter('verifiedOnly', checked)}
+                  />
+                  <Label htmlFor="verifiedOnly" className="flex items-center gap-2 cursor-pointer">
+                    <CheckCircle size={16} className="text-primary" />
+                    Vérifiés uniquement
+                  </Label>
+                </div>
+
+                {/* Emergency Services */}
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="emergencyServices"
+                    checked={filters.emergencyServices}
+                    onCheckedChange={(checked) => updateFilter('emergencyServices', checked)}
+                  />
+                  <Label htmlFor="emergencyServices" className="flex items-center gap-2 cursor-pointer">
+                    <Ambulance size={16} className="text-red-500" />
+                    Services d'urgence
+                  </Label>
+                </div>
+
+                {/* Home Visit */}
+                <div className="flex items-center space-x-2">
+                  <Switch
+                    id="homeVisitAvailable"
+                    checked={filters.homeVisitAvailable}
+                    onCheckedChange={(checked) => updateFilter('homeVisitAvailable', checked)}
+                  />
+                  <Label htmlFor="homeVisitAvailable" className="flex items-center gap-2 cursor-pointer">
+                    <Home size={16} className="text-green-500" />
+                    Visite à domicile
+                  </Label>
+                </div>
+              </div>
+
+              {/* Accessibility Features */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Accessibility size={16} className="text-blue-500" />
+                  Accessibilité
+                </Label>
+                <div className="flex flex-wrap gap-2">
+                  {accessibilityOptions.map((option) => (
+                    <Badge
+                      key={option.value}
+                      variant={filters.accessibilityFeatures.includes(option.value) ? "default" : "outline"}
+                      className="cursor-pointer"
+                      onClick={() => toggleAccessibilityFeature(option.value)}
+                    >
+                      {option.label}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

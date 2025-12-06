@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ExternalLink, CheckCircle } from 'lucide-react';
 import { collection, query, where, orderBy, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '@/integrations/firebase/client';
 import { COLLECTIONS } from '@/integrations/firebase/types';
@@ -26,6 +26,7 @@ interface MedicalAd {
     business_name: string;
     provider_type: string;
     avatar_url: string | null;
+    is_verified?: boolean;
   };
 }
 
@@ -266,7 +267,12 @@ export default function MedicalAdCarousel({ className = '' }: MedicalAdCarouselP
                             </div>
                           )}
                           <div>
-                            <p className="font-medium text-sm">{ad.provider.business_name}</p>
+                            <div className="flex items-center gap-1">
+                              <p className="font-medium text-sm">{ad.provider.business_name}</p>
+                              {ad.provider.is_verified && (
+                                <CheckCircle className="h-4 w-4 text-primary fill-primary/20" />
+                              )}
+                            </div>
                             <p className="text-xs text-muted-foreground">
                               {getProviderTypeLabel(ad.provider.provider_type)}
                             </p>
@@ -276,6 +282,14 @@ export default function MedicalAdCarousel({ className = '' }: MedicalAdCarouselP
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                           <ExternalLink className="h-4 w-4" />
                         </Button>
+                      </div>
+                    )}
+                    
+                    {/* Verified badge for ads without provider info */}
+                    {!ad.provider && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <CheckCircle className="h-3 w-3 text-primary" />
+                        <span>Annonce vérifiée</span>
                       </div>
                     )}
                   </div>

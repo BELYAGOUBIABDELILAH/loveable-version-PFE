@@ -333,9 +333,15 @@
 
 ## PHASE 5: PROVIDER VERIFICATION UI (P1 - Important)
 
-- [ ] 12. Implement Verification Request UI
+- [x] 12. Implement Verification Request UI
 
-- [ ] 12.1 Create VerificationRequestCard component
+
+
+
+
+- [x] 12.1 Create VerificationRequestCard component
+
+
   - Create `src/components/provider/VerificationRequestCard.tsx`
   - Display current verification status
   - Show "Request Verification" button if unverified
@@ -343,28 +349,44 @@
   - Add document upload functionality
   - _Requirements: 6.1, 6.2_
 
-- [ ] 12.2 Create verificationService
+- [x] 12.2 Create verificationService
+
+
   - Create `src/integrations/firebase/services/verificationService.ts`
   - Implement `createVerificationRequest(providerId, documents)`
   - Implement `getVerificationStatus(providerId)`
   - Implement `getVerificationByProvider(providerId)`
   - _Requirements: 6.3_
 
-- [ ] 12.3 Integrate VerificationRequestCard in ProviderDashboard
+- [x] 12.3 Integrate VerificationRequestCard in ProviderDashboard
+
+
+
+
+
+
+
   - Open `src/pages/ProviderDashboard.tsx`
   - Add VerificationRequestCard to profile section
   - Show denial reason if status is 'rejected'
   - Update UI when verification status changes
   - _Requirements: 6.4, 6.5_
 
-- [ ] 12.4 Write property tests for verification
+- [x] 12.4 Write property tests for verification
+
+
   - **Property 14: Verification button visibility**
   - **Property 15: Verification button enablement**
   - **Property 16: Verification request persistence**
   - **Property 17: Verification status display**
   - **Validates: Requirements 6.1, 6.2, 6.3, 6.4**
 
-- [ ] 13. Checkpoint - Verification UI
+- [x] 13. Checkpoint - Verification UI
+
+
+
+
+
   - Ensure all tests pass, ask the user if questions arise.
 
 ---
@@ -374,9 +396,16 @@
 
 ## PHASE 6: UI FIXES (P1 - Important)
 
-- [ ] 14. Fix FavoritesPage Login Button
+- [x] 14. Fix FavoritesPage Login Button
 
-- [ ] 14.1 Connect login button to AuthModal
+
+
+
+
+
+
+- [x] 14.1 Connect login button to AuthModal
+
   - Open `src/pages/FavoritesPage.tsx`
   - Add state: `const [showAuthModal, setShowAuthModal] = useState(false)`
   - Find "Se connecter" button for unauthenticated users
@@ -403,9 +432,15 @@
   - **Validates: Requirements 7.1, 7.2, 7.4**
 
 
-- [ ] 15. Connect MapPage to Firestore
+- [x] 15. Connect MapPage to Firestore
 
-- [ ] 15.1 Update MapPage data source
+
+
+
+
+- [x] 15.1 Update MapPage data source
+
+
   - Open `src/pages/MapPage.tsx`
   - Remove mock data imports
 
@@ -413,7 +448,9 @@
   - Handle loading and error states
   - _Requirements: 8.1, 8.2_
 
-- [ ] 15.2 Add filter support to MapPage
+
+- [x] 15.2 Add filter support to MapPage
+
   - Implement same filters as SearchPage
   - Update markers when filters change
   - Sync filter state with URL params
@@ -426,7 +463,10 @@
   - **Property 23: Map filter synchronization**
   - **Validates: Requirements 8.1, 8.2, 8.3, 8.4, 8.5**
 
-- [ ] 16. Final Checkpoint
+- [x] 16. Final Checkpoint
+
+
+
   - Ensure all tests pass, ask the user if questions arise.
 
 ---

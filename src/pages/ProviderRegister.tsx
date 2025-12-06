@@ -108,6 +108,10 @@ export default function ProviderRegister() {
       let licenseUrl: string | undefined;
       if (formData.license) {
         try {
+          const maxSize = 10 * 1024 * 1024; // 10MB
+          if (formData.license.size > maxSize) {
+            throw new Error('Le fichier de licence dépasse 10MB');
+          }
           const fileExt = formData.license.name.split('.').pop();
           const licensePath = `licenses/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
           const result = await uploadFile(licensePath, formData.license);
@@ -129,8 +133,7 @@ export default function ProviderRegister() {
         } catch (uploadError) {
           console.error('Photo upload error:', uploadError);
         }
-      }
-      
+      }      
       // Create provider document in Firestore with status: 'pending'
       const providerData = {
         userId: userId || '',

@@ -32,17 +32,31 @@ export const ModernFooter = () => {
   ];
 
   const footerLinks = {
-    quickLinks: [
-      { label: t('footer.contact'), path: '/contact' },
-      { label: t('footer.terms'), path: '/terms' },
-      { label: t('footer.privacy'), path: '/privacy' },
-    ]
+    services: [
+      { label: 'Rechercher', path: '/search' },
+      { label: 'Carte interactive', path: '/map' },
+      { label: 'Urgences', path: '/emergency' },
+      { label: 'Favoris', path: '/favorites' },
+    ],
+    professionals: [
+      { label: 'Devenir partenaire', path: '/provider/register' },
+      { label: 'Tableau de bord', path: '/provider/dashboard' },
+    ],
+    about: [
+      { label: 'Pourquoi CityHealth', path: '/why' },
+      { label: 'Comment ça marche', path: '/how' },
+      { label: 'Contact', path: '/contact' },
+    ],
+    account: [
+      { label: 'Mon profil', path: '/profile' },
+      { label: 'Paramètres', path: '/settings' },
+    ],
   };
 
   return (
     <footer className="bg-secondary/20 border-t border-border/40 mt-20">
       <div className="container mx-auto px-4 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
           {/* Brand & Contact */}
           <div>
             <Link to="/" className="flex items-center gap-2 mb-4">
@@ -79,11 +93,42 @@ export const ModernFooter = () => {
             </div>
           </div>
 
-          {/* Quick Links */}
+          {/* Services */}
           <div>
-            <h3 className="font-semibold mb-4">Liens rapides</h3>
+            <h3 className="font-semibold mb-4">Services</h3>
             <ul className="space-y-2">
-              {footerLinks.quickLinks.map((link) => (
+              {footerLinks.services.map((link) => (
+                <li key={link.path}>
+                  <Link
+                    to={link.path}
+                    className="text-muted-foreground hover:text-primary transition-colors text-sm"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Professionals */}
+          <div>
+            <h3 className="font-semibold mb-4">Professionnels</h3>
+            <ul className="space-y-2">
+              {footerLinks.professionals.map((link) => (
+                <li key={link.path}>
+                  <Link
+                    to={link.path}
+                    className="text-muted-foreground hover:text-primary transition-colors text-sm"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            
+            <h3 className="font-semibold mb-4 mt-6">À propos</h3>
+            <ul className="space-y-2">
+              {footerLinks.about.map((link) => (
                 <li key={link.path}>
                   <Link
                     to={link.path}

@@ -28,18 +28,24 @@ import {
   NavigationMenuTrigger,
 } from "@/components/ui/navigation-menu";
 
-// Use Cases dropdown items
-const useCasesItems = [
-  { to: '/search', label: 'Find Providers', description: 'Search for healthcare providers' },
-  { to: '/map', label: 'Map View', description: 'View providers on a map' },
-  { to: '/emergency', label: 'Emergency Services', description: '24/7 emergency care' },
+// Services dropdown items (French)
+const servicesItems = [
+  { to: '/search', label: 'Rechercher', description: 'Trouver un professionnel de santé' },
+  { to: '/map', label: 'Carte interactive', description: 'Voir les prestataires sur la carte' },
+  { to: '/emergency', label: 'Urgences', description: 'Services d\'urgence 24h/24' },
 ];
 
-// Resources dropdown items
+// Professionals dropdown items (French)
+const professionalsItems = [
+  { to: '/provider/register', label: 'Devenir partenaire', description: 'Rejoignez notre réseau de prestataires' },
+  { to: '/provider/dashboard', label: 'Tableau de bord', description: 'Gérez votre profil professionnel' },
+];
+
+// Resources dropdown items (French)
 const resourcesItems = [
-  { to: '/how', label: 'How It Works', description: 'Learn about our platform' },
-  { to: '/why', label: 'Why CityHealth', description: 'Our mission and values' },
-  { to: '/contact', label: 'Contact Us', description: 'Get in touch with us' },
+  { to: '/why', label: 'Pourquoi CityHealth', description: 'Notre mission et nos valeurs' },
+  { to: '/how', label: 'Comment ça marche', description: 'Guide d\'utilisation de la plateforme' },
+  { to: '/contact', label: 'Contact', description: 'Nous contacter' },
 ];
 
 export const Navbar = () => {
@@ -90,7 +96,7 @@ export const Navbar = () => {
             <div className="hidden md:flex items-center space-x-1">
               <NavigationMenu>
                 <NavigationMenuList>
-                  {/* Product */}
+                  {/* Accueil */}
                   <NavigationMenuItem>
                     <Link to="/">
                       <NavigationMenuLink 
@@ -100,12 +106,12 @@ export const Navbar = () => {
                           isScrolled ? "text-antigravity-primary-text" : "text-antigravity-primary-text"
                         )}
                       >
-                        Product
+                        Accueil
                       </NavigationMenuLink>
                     </Link>
                   </NavigationMenuItem>
 
-                  {/* Use Cases Dropdown */}
+                  {/* Services Dropdown */}
                   <NavigationMenuItem>
                     <NavigationMenuTrigger 
                       className={cn(
@@ -114,11 +120,11 @@ export const Navbar = () => {
                         isScrolled ? "text-antigravity-primary-text" : "text-antigravity-primary-text"
                       )}
                     >
-                      Use Cases
+                      Services
                     </NavigationMenuTrigger>
                     <NavigationMenuContent>
                       <ul className="grid w-[300px] gap-2 p-4 bg-white rounded-card shadow-soft">
-                        {useCasesItems.map((item) => (
+                        {servicesItems.map((item) => (
                           <li key={item.to}>
                             <Link
                               to={item.to}
@@ -137,37 +143,7 @@ export const Navbar = () => {
                     </NavigationMenuContent>
                   </NavigationMenuItem>
 
-                  {/* Pricing */}
-                  <NavigationMenuItem>
-                    <Link to="/providers">
-                      <NavigationMenuLink 
-                        className={cn(
-                          "px-4 py-2 text-sm font-medium transition-colors rounded-lg",
-                          "hover:bg-antigravity-button-secondary",
-                          isScrolled ? "text-antigravity-primary-text" : "text-antigravity-primary-text"
-                        )}
-                      >
-                        Pricing
-                      </NavigationMenuLink>
-                    </Link>
-                  </NavigationMenuItem>
-
-                  {/* Blog */}
-                  <NavigationMenuItem>
-                    <Link to="/why">
-                      <NavigationMenuLink 
-                        className={cn(
-                          "px-4 py-2 text-sm font-medium transition-colors rounded-lg",
-                          "hover:bg-antigravity-button-secondary",
-                          isScrolled ? "text-antigravity-primary-text" : "text-antigravity-primary-text"
-                        )}
-                      >
-                        Blog
-                      </NavigationMenuLink>
-                    </Link>
-                  </NavigationMenuItem>
-
-                  {/* Resources Dropdown */}
+                  {/* Professionnels Dropdown */}
                   <NavigationMenuItem>
                     <NavigationMenuTrigger 
                       className={cn(
@@ -176,7 +152,39 @@ export const Navbar = () => {
                         isScrolled ? "text-antigravity-primary-text" : "text-antigravity-primary-text"
                       )}
                     >
-                      Resources
+                      Professionnels
+                    </NavigationMenuTrigger>
+                    <NavigationMenuContent>
+                      <ul className="grid w-[300px] gap-2 p-4 bg-white rounded-card shadow-soft">
+                        {professionalsItems.map((item) => (
+                          <li key={item.to}>
+                            <Link
+                              to={item.to}
+                              className="block p-3 rounded-lg hover:bg-antigravity-button-secondary transition-colors"
+                            >
+                              <div className="text-sm font-medium text-antigravity-primary-text">
+                                {item.label}
+                              </div>
+                              <div className="text-xs text-antigravity-secondary-text mt-1">
+                                {item.description}
+                              </div>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </NavigationMenuContent>
+                  </NavigationMenuItem>
+
+                  {/* Ressources Dropdown */}
+                  <NavigationMenuItem>
+                    <NavigationMenuTrigger 
+                      className={cn(
+                        "px-4 py-2 text-sm font-medium transition-colors",
+                        "hover:bg-antigravity-button-secondary bg-transparent",
+                        isScrolled ? "text-antigravity-primary-text" : "text-antigravity-primary-text"
+                      )}
+                    >
+                      Ressources
                     </NavigationMenuTrigger>
                     <NavigationMenuContent>
                       <ul className="grid w-[300px] gap-2 p-4 bg-white rounded-card shadow-soft">

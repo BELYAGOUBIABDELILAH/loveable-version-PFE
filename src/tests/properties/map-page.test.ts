@@ -117,9 +117,9 @@ describe('MapPage Filter Synchronization', () => {
     const mapPagePath = path.resolve(process.cwd(), 'src/pages/MapPage.tsx')
     const mapPageContent = fs.readFileSync(mapPagePath, 'utf-8')
     
-    // Should have category filter state
-    expect(mapPageContent).toContain('selectedCategory')
-    expect(mapPageContent).toContain('setSelectedCategory')
+    // Should have category filter state (now part of filters object)
+    expect(mapPageContent).toContain('filters.category')
+    expect(mapPageContent).toContain('updateFilter')
     
     // Should filter by category
     expect(mapPageContent).toContain('matchesCategory')
@@ -133,12 +133,28 @@ describe('MapPage Filter Synchronization', () => {
     const mapPagePath = path.resolve(process.cwd(), 'src/pages/MapPage.tsx')
     const mapPageContent = fs.readFileSync(mapPagePath, 'utf-8')
     
-    // Should have search filter state
-    expect(mapPageContent).toContain('searchQuery')
-    expect(mapPageContent).toContain('setSearchQuery')
+    // Should have search filter state (now part of filters object)
+    expect(mapPageContent).toContain('filters.searchQuery')
+    expect(mapPageContent).toContain('updateFilter')
     
     // Should filter by search query
     expect(mapPageContent).toContain('matchesSearch')
+  })
+
+  it('Property 23: MapPage should sync filters with URL params', async () => {
+    const fs = await import('fs')
+    const path = await import('path')
+    
+    const mapPagePath = path.resolve(process.cwd(), 'src/pages/MapPage.tsx')
+    const mapPageContent = fs.readFileSync(mapPagePath, 'utf-8')
+    
+    // Should use URL search params
+    expect(mapPageContent).toContain('useSearchParams')
+    expect(mapPageContent).toContain('setSearchParams')
+    
+    // Should serialize/deserialize filters
+    expect(mapPageContent).toContain('serializeFilters')
+    expect(mapPageContent).toContain('deserializeFilters')
   })
 
   it('Property 23: For any filter combination, filtered results should be consistent', () => {

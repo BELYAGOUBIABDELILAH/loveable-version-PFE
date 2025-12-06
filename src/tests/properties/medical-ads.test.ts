@@ -1,41 +1,297 @@
-﻿/**
+/**
  * Property-Based Tests for Medical Ads System
  * Feature: cityhealth-platform, Properties 36, 37, 38: Medical ads functionality
  * Validates: Requirements 11.1, 11.2, 11.3
  */
 
-import { describe, it, expect } from 'vitest'
-import * as fc from 'fast-check'
+import { describe, it, expect } from 'vitest';
+import * as fc from 'fast-check';
 
-const verifiedProviderGen = fc.record({ id: fc.uuid(), verification_status: fc.constant('verified') })
-const unverifiedProviderGen = fc.record({ id: fc.uuid(), verification_status: fc.constantFrom('pending', 'rejected') })
-const medicalAdGen = fc.record({ title: fc.string({ minLength: 1, maxLength: 100 }).filter(s => s.trim().length > 0), content: fc.string({ minLength: 1, maxLength: 500 }).filter(s => s.trim().length > 0), start_date: fc.constant('2024-01-01'), end_date: fc.constant('2024-12-31') })
-const medicalAdWithStatusGen = fc.record({ id: fc.uuid(), provider_id: fc.uuid(), title: fc.string({ minLength: 1, maxLength: 100 }).filter(s => s.trim().length > 0), content: fc.string({ minLength: 1, maxLength: 500 }).filter(s => s.trim().length > 0), status: fc.constantFrom('pending', 'approved', 'rejected') })
+// Generators
+const verifiedProviderGen = fc.record({
+  id: fc.uuid(),
+  verification_status: fc.constant('verified'),
+});
 
-function canCreateAd(provider: any): boolean { return provider.verification_status === 'verified' }
-function validateAdData(adData: any): { valid: boolean; error?: string } { if (!adData.title.trim() || !adData.content.trim()) return { valid: false, error: 'Title and content are required' }; if (new Date(adData.end_date) <= new Date(adData.start_date)) return { valid: false, error: 'End date must be after start date' }; return { valid: true } }
-function getPublicAds(allAds: any[]): any[] { return allAds.filter(ad => ad.status === 'approved') }
-function getProviderAds(providerId: string, allAds: any[]): any[] { return allAds.filter(ad => ad.provider_id === providerId) }
+const unverifiedProviderGen = fc.record({
+  id: fc.uuid(),
+  verification_status: fc.constantFrom('pending', 'rejected'),
+});
+
+const medicalAdGen = fc.record({
+  title: fc.string({ minLength: 1, maxLength: 100 }).filter(s => s.trim().length > 0),
+  content: fc.string({ minLength: 1, maxLength: 500 }).filter(s => s.trim().length > 0),
+  start_date: fc.constant('2024-01-01'),
+  end_date: fc.constant('2024-12-31'),
+});
+
+const medicalAdWithStatusGen = fc.record({
+  id: fc.uuid(),
+  provider_id: fc.uuid(),
+  title: fc.string({ minLength: 1, maxLength: 100 }).filter(s => s.trim().length > 0),
+  content: fc.string({ minLength: 1, maxLength: 500 }).filter(s => s.trim().length > 0),
+  status: fc.constantFrom('pending', 'approved', 'rejected'),
+});
+
+// Helper functions
+function canCreateAd(provider: any): boolean {
+  return provider.verification_status === 'verified';
+}
+
+function validateAdData(adData: any): { valid: boolean; error?: string } {
+  if (!adData.title.trim() || !adData.content.trim()) {
+    return { valid: false, error: 'Title and content are required' };
+  }
+  if (new Date(adData.end_date) <= new Date(adData.start_date)) {
+    return { valid: false, error: 'End date must be after start date' };
+  }
+  return { valid: true };
+}
+
+function getPublicAds(allAds: any[]): any[] {
+  return allAds.filter(ad => ad.status === 'approved');
+}
+
+function getProviderAds(providerId: string, allAds: any[]): any[] {
+  return allAds.filter(ad => ad.provider_id === providerId);
+}
 
 describe('Medical Ads System Property Tests', () => {
-  it('Property 36: Ad creation access control - verified providers can create ads', () => { fc.assert(fc.property(verifiedProviderGen, (provider) => { expect(canCreateAd(provider)).toBe(true); return true }), { numRuns: 100 }) })
-  it('Property 36a: Ad creation access control - unverified providers cannot create ads', () => { fc.assert(fc.property(unverifiedProviderGen, (provider) => { expect(canCreateAd(provider)).toBe(false); return true }), { numRuns: 100 }) })
-  it('Property 36b: Ad creation requires authentication', () => { fc.assert(fc.property(fc.boolean(), (isAuth) => { if (!isAuth) expect(isAuth).toBe(false); return true }), { numRuns: 50 }) })
-  it('Property 37: Ad content support - text only ads', () => { fc.assert(fc.property(medicalAdGen, (adData) => { expect(validateAdData(adData).valid).toBe(true); return true }), { numRuns: 100 }) })
-  it('Property 37a: Ad content support - text and image ads', () => { fc.assert(fc.property(medicalAdGen, fc.boolean(), (adData) => { expect(validateAdData(adData).valid).toBe(true); return true }), { numRuns: 100 }) })
-  it('Property 37b: Ad content validation - empty content rejection', () => { fc.assert(fc.property(fc.record({ title: fc.constantFrom('', '   '), content: fc.string({ minLength: 1, maxLength: 500 }), start_date: fc.constant('2024-01-01'), end_date: fc.constant('2024-02-01') }), (adData) => { const v = validateAdData(adData); expect(v.valid).toBe(false); expect(v.error).toBe('Title and content are required'); return true }), { numRuns: 50 }) })
-  it('Property 37c: Ad content validation - invalid dates rejection', () => { fc.assert(fc.property(fc.record({ title: fc.string({ minLength: 1, maxLength: 100 }).filter(s => s.trim().length > 0), content: fc.string({ minLength: 1, maxLength: 500 }).filter(s => s.trim().length > 0), start_date: fc.constant('2024-06-01'), end_date: fc.constant('2024-05-01') }), (adData) => { const v = validateAdData(adData); expect(v.valid).toBe(false); expect(v.error).toBe('End date must be after start date'); return true }), { numRuns: 50 }) })
-  it('Property 38: Ad approval requirement - ads created with pending status', () => { fc.assert(fc.property(medicalAdGen, (adData) => { const newAd = { ...adData, status: 'pending' }; expect(newAd.status).toBe('pending'); return true }), { numRuns: 100 }) })
-  it('Property 38a: Ad approval requirement - only approved ads are publicly visible', () => { fc.assert(fc.property(fc.array(medicalAdWithStatusGen, { minLength: 0, maxLength: 20 }), (allAds) => { const publicAds = getPublicAds(allAds); publicAds.forEach(ad => expect(ad.status).toBe('approved')); return true }), { numRuns: 100 }) })
-  it('Property 38b: Ad approval requirement - file validation for images', () => { fc.assert(fc.property(fc.record({ type: fc.constantFrom('image/jpeg', 'image/png', 'application/exe'), size: fc.integer({ min: 1000, max: 10000000 }) }), (file) => { const isValid = ['image/jpeg', 'image/png'].includes(file.type) && file.size <= 5000000; if (file.type === 'application/exe' || file.size > 5000000) expect(isValid).toBe(false); return true }), { numRuns: 50 }) })
-  it('Property 40: Ad status visibility - providers can view their own ad statuses', () => { fc.assert(fc.property(fc.uuid(), fc.array(medicalAdWithStatusGen, { minLength: 0, maxLength: 10 }), (providerId, allAds) => { const providerAds = allAds.map(ad => ({ ...ad, provider_id: providerId })); const result = getProviderAds(providerId, providerAds); expect(result).toHaveLength(providerAds.length); return true }), { numRuns: 100 }) })
-  it('Property 40a: Ad status visibility - providers cannot view other providers ads', () => { fc.assert(fc.property(fc.uuid(), fc.uuid(), fc.array(medicalAdWithStatusGen, { minLength: 1, maxLength: 5 }), (providerId, otherProviderId, otherProviderAds) => { const adsForOther = otherProviderAds.map(ad => ({ ...ad, provider_id: otherProviderId })); const result = getProviderAds(providerId, adsForOther); expect(result).toHaveLength(0); return true }), { numRuns: 50 }) })
-  it('Property 40b: Ad status visibility - all status types are displayable', () => { fc.assert(fc.property(fc.uuid(), (providerId) => { const allStatusAds = [{ id: '1', provider_id: providerId, status: 'pending' }, { id: '2', provider_id: providerId, status: 'approved' }, { id: '3', provider_id: providerId, status: 'rejected' }]; const result = getProviderAds(providerId, allStatusAds); expect(result).toHaveLength(3); return true }), { numRuns: 50 }) })
-  it('Property 39: Approved ad display locations - homepage carousel shows approved ads', () => { fc.assert(fc.property(fc.array(medicalAdWithStatusGen, { minLength: 0, maxLength: 10 }), (allAds) => { const carouselAds = getPublicAds(allAds); carouselAds.forEach(ad => expect(ad.status).toBe('approved')); return true }), { numRuns: 100 }) })
-  it('Property 39a: Approved ad display locations - search results include inline ads', () => { fc.assert(fc.property(fc.array(medicalAdWithStatusGen, { minLength: 0, maxLength: 10 }), (allAds) => { const inlineAds = getPublicAds(allAds); inlineAds.forEach(ad => expect(ad.status).toBe('approved')); return true }), { numRuns: 100 }) })
-  it('Property 39b: Approved ad display locations - expired ads are not displayed', () => { fc.assert(fc.property(fc.array(fc.record({ id: fc.uuid(), status: fc.constant('approved'), end_date: fc.constantFrom('2020-01-01', '2024-12-31', '2025-12-31') }), { minLength: 0, maxLength: 10 }), (allAds) => { const currentDate = new Date(); const activeAds = allAds.filter(ad => new Date(ad.end_date) >= currentDate); activeAds.forEach(ad => expect(new Date(ad.end_date) >= currentDate).toBe(true)); return true }), { numRuns: 100 }) })
-  it('Property 39c: Approved ad display locations - ads are ordered by priority', () => { fc.assert(fc.property(fc.array(fc.record({ id: fc.uuid(), status: fc.constant('approved'), display_priority: fc.integer({ min: 0, max: 10 }) }), { minLength: 2, maxLength: 10 }), (allAds) => { const sortedAds = [...allAds].sort((a, b) => b.display_priority - a.display_priority); for (let i = 1; i < sortedAds.length; i++) expect(sortedAds[i - 1].display_priority >= sortedAds[i].display_priority).toBe(true); return true }), { numRuns: 100 }) })
-  it('Property 54: Admin ad moderation - admins can approve, reject, and delete ads', () => { fc.assert(fc.property(fc.constant('admin'), fc.array(medicalAdWithStatusGen, { minLength: 1, maxLength: 10 }), (role, medicalAds) => { expect(role).toBe('admin'); expect(medicalAds.length).toBeGreaterThan(0); return true }), { numRuns: 100 }) })
-  it('Property 54a: Admin ad moderation - filtering and search functionality', () => { fc.assert(fc.property(fc.array(medicalAdWithStatusGen, { minLength: 0, maxLength: 20 }), fc.constantFrom('all', 'pending', 'approved', 'rejected'), (medicalAds, statusFilter) => { let filteredAds = medicalAds; if (statusFilter !== 'all') filteredAds = medicalAds.filter(ad => ad.status === statusFilter); if (statusFilter !== 'all') filteredAds.forEach(ad => expect(ad.status).toBe(statusFilter)); return true }), { numRuns: 100 }) })
-  it('Property 54b: Admin ad moderation - non-admin users cannot moderate ads', () => { fc.assert(fc.property(fc.constantFrom('citizen', 'provider'), (role) => { expect(role !== 'admin').toBe(true); return true }), { numRuns: 50 }) })
-})
+  it('Property 36: Ad creation access control - verified providers can create ads', () => {
+    fc.assert(fc.property(verifiedProviderGen, (provider) => {
+      const canCreate = canCreateAd(provider);
+      expect(canCreate).toBe(true);
+      return true;
+    }), { numRuns: 100 });
+  });
+
+  it('Property 36a: Ad creation access control - unverified providers cannot create ads', () => {
+    fc.assert(fc.property(unverifiedProviderGen, (provider) => {
+      const canCreate = canCreateAd(provider);
+      expect(canCreate).toBe(false);
+      return true;
+    }), { numRuns: 100 });
+  });
+
+  it('Property 36b: Ad creation requires authentication', () => {
+    fc.assert(fc.property(fc.boolean(), (isAuthenticated) => {
+      const canCreate = isAuthenticated;
+      if (!isAuthenticated) {
+        expect(canCreate).toBe(false);
+      }
+      return true;
+    }), { numRuns: 50 });
+  });
+
+  it('Property 37: Ad content support - text only ads', () => {
+    fc.assert(fc.property(medicalAdGen, (adData) => {
+      const validation = validateAdData(adData);
+      expect(validation.valid).toBe(true);
+      return true;
+    }), { numRuns: 100 });
+  });
+
+  it('Property 37a: Ad content support - text and image ads', () => {
+    fc.assert(
+      fc.property(
+        medicalAdGen,
+        fc.boolean(),
+        fc.webUrl(),
+        (adData, hasImage, imageUrl) => {
+          // Build ad data with optional image - always include image_url key
+          const adWithOptionalImage: typeof adData & { image_url?: string } = hasImage
+            ? { ...adData, image_url: imageUrl }
+            : { ...adData };
+
+          const validation = validateAdData(adWithOptionalImage);
+          expect(validation.valid).toBe(true);
+
+          // When hasImage is true, assert image_url is defined and well-formed
+          if (hasImage) {
+            expect(adWithOptionalImage.image_url).toBeDefined();
+            expect(typeof adWithOptionalImage.image_url).toBe('string');
+            expect(adWithOptionalImage.image_url!.length).toBeGreaterThan(0);
+            // Validate URL format
+            expect(
+              adWithOptionalImage.image_url!.startsWith('http://') ||
+                adWithOptionalImage.image_url!.startsWith('https://')
+            ).toBe(true);
+          } else {
+            // When hasImage is false, image_url should not be present
+            expect(adWithOptionalImage.image_url).toBeUndefined();
+          }
+
+          return true;
+        }
+      ),
+      { numRuns: 100 }
+    );
+  });
+
+  it('Property 37b: Ad content validation - empty content rejection', () => {
+    fc.assert(fc.property(
+      fc.record({ title: fc.constantFrom('', '   '), content: fc.string({ minLength: 1, maxLength: 500 }), start_date: fc.constant('2024-01-01'), end_date: fc.constant('2024-02-01') }),
+      (adData) => {
+        const validation = validateAdData(adData);
+        expect(validation.valid).toBe(false);
+        expect(validation.error).toBe('Title and content are required');
+        return true;
+      }
+    ), { numRuns: 50 });
+  });
+
+  it('Property 37c: Ad content validation - invalid dates rejection', () => {
+    fc.assert(fc.property(
+      fc.record({ title: fc.string({ minLength: 1, maxLength: 100 }).filter(s => s.trim().length > 0), content: fc.string({ minLength: 1, maxLength: 500 }).filter(s => s.trim().length > 0), start_date: fc.constant('2024-06-01'), end_date: fc.constant('2024-05-01') }),
+      (adData) => {
+        const validation = validateAdData(adData);
+        expect(validation.valid).toBe(false);
+        expect(validation.error).toBe('End date must be after start date');
+        return true;
+      }
+    ), { numRuns: 50 });
+  });
+
+  it('Property 38: Ad approval requirement - ads created with pending status', () => {
+    fc.assert(fc.property(medicalAdGen, (adData) => {
+      const newAd = { ...adData, status: 'pending' };
+      expect(newAd.status).toBe('pending');
+      return true;
+    }), { numRuns: 100 });
+  });
+
+  it('Property 38a: Ad approval requirement - only approved ads are publicly visible', () => {
+    fc.assert(fc.property(fc.array(medicalAdWithStatusGen, { minLength: 0, maxLength: 20 }), (allAds) => {
+      const publicAds = getPublicAds(allAds);
+      const expectedApproved = allAds.filter(ad => ad.status === 'approved');
+      expect(publicAds).toHaveLength(expectedApproved.length);
+      publicAds.forEach((ad) => { expect(ad.status).toBe('approved'); });
+      return true;
+    }), { numRuns: 100 });
+  });
+
+  it('Property 38b: Ad approval requirement - file validation for images', () => {
+    fc.assert(fc.property(
+      fc.record({ name: fc.string({ minLength: 1, maxLength: 50 }).filter(s => s.trim().length > 0), type: fc.constantFrom('image/jpeg', 'image/png', 'application/exe'), size: fc.integer({ min: 1000, max: 10000000 }) }),
+      (file) => {
+        const isValidType = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(file.type);
+        const isValidSize = file.size <= 5000000;
+        const isValid = isValidType && isValidSize;
+        if (file.type === 'application/exe' || file.size > 5000000) {
+          expect(isValid).toBe(false);
+        }
+        return true;
+      }
+    ), { numRuns: 50 });
+  });
+
+  it('Property 40: Ad status visibility - providers can view their own ad statuses', () => {
+    fc.assert(fc.property(fc.uuid(), fc.array(medicalAdWithStatusGen, { minLength: 0, maxLength: 10 }), (providerId, allAds) => {
+      const providerAds = allAds.map(ad => ({ ...ad, provider_id: providerId }));
+      const result = getProviderAds(providerId, providerAds);
+      expect(result).toHaveLength(providerAds.length);
+      result.forEach((ad) => {
+        expect(ad).toHaveProperty('status');
+        expect(['pending', 'approved', 'rejected']).toContain(ad.status);
+      });
+      return true;
+    }), { numRuns: 100 });
+  });
+
+  it('Property 40a: Ad status visibility - providers cannot view other providers ads', () => {
+    fc.assert(fc.property(fc.uuid(), fc.uuid(), fc.array(medicalAdWithStatusGen, { minLength: 1, maxLength: 5 }), (providerId, otherProviderId, otherProviderAds) => {
+      const adsForOther = otherProviderAds.map(ad => ({ ...ad, provider_id: otherProviderId }));
+      const result = getProviderAds(providerId, adsForOther);
+      expect(result).toHaveLength(0);
+      return true;
+    }), { numRuns: 50 });
+  });
+
+  it('Property 40b: Ad status visibility - all status types are displayable', () => {
+    fc.assert(fc.property(fc.uuid(), (providerId) => {
+      const allStatusAds = [
+        { id: '1', provider_id: providerId, title: 'Pending Ad', status: 'pending' },
+        { id: '2', provider_id: providerId, title: 'Approved Ad', status: 'approved' },
+        { id: '3', provider_id: providerId, title: 'Rejected Ad', status: 'rejected' },
+      ];
+      const result = getProviderAds(providerId, allStatusAds);
+      expect(result).toHaveLength(3);
+      const statuses = result.map((ad) => ad.status);
+      expect(statuses).toContain('pending');
+      expect(statuses).toContain('approved');
+      expect(statuses).toContain('rejected');
+      return true;
+    }), { numRuns: 50 });
+  });
+
+  it('Property 39: Approved ad display locations - homepage carousel shows approved ads', () => {
+    fc.assert(fc.property(fc.array(medicalAdWithStatusGen, { minLength: 0, maxLength: 10 }), (allAds) => {
+      const carouselAds = getPublicAds(allAds);
+      carouselAds.forEach((ad) => { expect(ad.status).toBe('approved'); });
+      return true;
+    }), { numRuns: 100 });
+  });
+
+  it('Property 39a: Approved ad display locations - search results include inline ads', () => {
+    fc.assert(fc.property(fc.array(medicalAdWithStatusGen, { minLength: 0, maxLength: 10 }), (allAds) => {
+      const inlineAds = getPublicAds(allAds);
+      inlineAds.forEach((ad) => { expect(ad.status).toBe('approved'); });
+      return true;
+    }), { numRuns: 100 });
+  });
+
+  it('Property 39b: Approved ad display locations - expired ads are not displayed', () => {
+    fc.assert(fc.property(
+      fc.array(fc.record({ id: fc.uuid(), status: fc.constant('approved'), end_date: fc.constantFrom('2020-01-01', '2024-12-31', '2025-12-31') }), { minLength: 0, maxLength: 10 }),
+      (allAds) => {
+        const currentDate = new Date();
+        const activeAds = allAds.filter(ad => new Date(ad.end_date) >= currentDate);
+        activeAds.forEach((ad) => { expect(new Date(ad.end_date) >= currentDate).toBe(true); });
+        return true;
+      }
+    ), { numRuns: 100 });
+  });
+
+  it('Property 39c: Approved ad display locations - ads are ordered by priority', () => {
+    fc.assert(fc.property(
+      fc.array(fc.record({ id: fc.uuid(), status: fc.constant('approved'), display_priority: fc.integer({ min: 0, max: 10 }) }), { minLength: 2, maxLength: 10 }),
+      (allAds) => {
+        const sortedAds = [...allAds].sort((a, b) => b.display_priority - a.display_priority);
+        for (let i = 1; i < sortedAds.length; i++) {
+          expect(sortedAds[i - 1].display_priority >= sortedAds[i].display_priority).toBe(true);
+        }
+        return true;
+      }
+    ), { numRuns: 100 });
+  });
+
+  it('Property 54: Admin ad moderation - admins can approve, reject, and delete ads', () => {
+    fc.assert(fc.property(fc.constant('admin'), fc.array(medicalAdWithStatusGen, { minLength: 1, maxLength: 10 }), (role, medicalAds) => {
+      const isAdmin = role === 'admin';
+      expect(isAdmin).toBe(true);
+      expect(medicalAds.length).toBeGreaterThan(0);
+      return true;
+    }), { numRuns: 100 });
+  });
+
+  it('Property 54a: Admin ad moderation - filtering and search functionality', () => {
+    fc.assert(fc.property(fc.array(medicalAdWithStatusGen, { minLength: 0, maxLength: 20 }), fc.constantFrom('all', 'pending', 'approved', 'rejected'), (medicalAds, statusFilter) => {
+      let filteredAds = medicalAds;
+      if (statusFilter !== 'all') {
+        filteredAds = medicalAds.filter(ad => ad.status === statusFilter);
+      }
+      if (statusFilter !== 'all') {
+        filteredAds.forEach(ad => { expect(ad.status).toBe(statusFilter); });
+      }
+      return true;
+    }), { numRuns: 100 });
+  });
+
+  it('Property 54b: Admin ad moderation - non-admin users cannot moderate ads', () => {
+    fc.assert(fc.property(fc.constantFrom('citizen', 'provider') as fc.Arbitrary<string>, (role) => {
+      const canModerate = role === 'admin';
+      expect(canModerate).toBe(false);
+      return true;
+    }), { numRuns: 50 });
+  });
+});
